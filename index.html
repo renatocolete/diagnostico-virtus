@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Diagnóstico financeiro gratuito | Virtus Wealth</title>
+<meta name="description" content="Responda em 3 minutos e receba na hora um PDF com o retrato da sua vida financeira.">
+<meta name="theme-color" content="#000000">
+<link rel="icon" href="assets/logo.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;600;700&family=Instrument+Serif:ital@0;1&display=swap">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topo">
+  <img src="assets/logo.png" alt="Virtus Wealth" width="40" height="40">
+  <span>VIRTUS WEALTH</span>
+</header>
+
+<main id="app">
+  <!-- Tela inicial -->
+  <section id="tela-inicio" class="tela ativa">
+    <p class="eyebrow" id="inicio-eyebrow">DIAGNÓSTICO FINANCEIRO GRATUITO</p>
+    <h1 id="inicio-titulo">Descubra onde você está e até onde pode chegar</h1>
+    <p class="lead" id="inicio-texto">Responda em 3 minutos e receba na hora um PDF com o retrato da sua vida financeira, os seus pontos de atenção e uma projeção do seu patrimônio.</p>
+    <ul class="beneficios">
+      <li>Sem compromisso e sem venda de produto</li>
+      <li>O PDF chega na tela e no seu e-mail</li>
+    </ul>
+    <button class="btn" id="btn-comecar" type="button">Começar diagnóstico</button>
+    <p class="assinatura">Renato Colete · Especialista em Investimentos ANBIMA (CEA)</p>
+  </section>
+
+  <!-- Perguntas (montadas pelo app.js) -->
+  <section id="tela-form" class="tela">
+    <div class="progresso"><div class="progresso-barra" id="barra"></div></div>
+    <p class="passo" id="passo-texto"></p>
+    <form id="form" novalidate autocomplete="on">
+      <div id="pergunta"></div>
+      <!-- campo armadilha contra robôs: fica escondido -->
+      <input type="text" name="empresa_site" id="hp" tabindex="-1" autocomplete="off" class="hp" aria-hidden="true">
+      <p class="erro" id="erro" role="alert"></p>
+      <div class="navegacao">
+        <button class="btn btn-sec" id="btn-voltar" type="button">Voltar</button>
+        <button class="btn" id="btn-avancar" type="submit">Continuar</button>
+      </div>
+    </form>
+  </section>
+
+  <!-- Gerando -->
+  <section id="tela-gerando" class="tela">
+    <div class="spinner" aria-hidden="true"></div>
+    <h2>Montando o seu diagnóstico…</h2>
+    <p class="lead">Leva só alguns segundos.</p>
+  </section>
+
+  <!-- Resultado -->
+  <section id="tela-resultado" class="tela">
+    <p class="eyebrow">SEU DIAGNÓSTICO ESTÁ PRONTO</p>
+    <h1 id="res-titulo"></h1>
+    <div class="cartao destaque" id="res-fase"></div>
+    <div class="cartao" id="res-projecao"></div>
+    <div class="cartao" id="res-ponto"></div>
+    <button class="btn" id="btn-pdf" type="button">Baixar meu diagnóstico em PDF</button>
+    <a class="btn btn-sec" id="btn-whats" target="_blank" rel="noopener">Conversar com o Renato no WhatsApp</a>
+    <p class="nota" id="res-email"></p>
+  </section>
+</main>
+
+<footer class="rodape">
+  Virtus Wealth Consultoria de Investimentos · CNPJ 65.691.071/0001-23<br>
+  Seus dados são usados só para enviar o diagnóstico e entrar em contato com você.
+</footer>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+<script src="logo-data.js"></script>
+<script src="config.js"></script>
+<script src="perguntas.js"></script>
+<script src="diagnostico.js"></script>
+<script src="pdf.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

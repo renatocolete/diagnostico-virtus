@@ -1,0 +1,200 @@
+// Gera o PDF personalizado (A4, 3 páginas) com a identidade da Virtus.
+
+window.gerarPDF = function (d) {
+  const { jsPDF } = window.jspdf;
+  const doc = new jsPDF({ unit: 'pt', format: 'a4' });
+  const W = 595.28, H = 841.89, M = 48;
+  const C = {
+    fundo: '#000000', cartao: '#13161B', linha: '#2B313A',
+    texto: '#ECEEF2', suave: '#9CA2AD', ciano: '#00D2D3', cianoEsc: '#0E4A4B', laranja: '#FF8A6B', tinta: '#001A1A',
+  };
+  const hoje = new Date().toLocaleDateString('pt-BR');
+  let pagina = 0;
+
+  function novaPagina() {
+    if (pagina > 0) doc.addPage();
+    pagina++;
+    doc.setFillColor(C.fundo); doc.rect(0, 0, W, H, 'F');
+    // topo
+    if (window.VIRTUS_LOGO) doc.addImage(window.VIRTUS_LOGO, 'PNG', M, 36, 30, 30);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(C.texto);
+    doc.text('VIRTUS WEALTH', M + 40, 55, { charSpace: 2 });
+    doc.setFont('helvetica', 'normal'); doc.setTextColor(C.suave);
+    doc.text('Diagnóstico de ' + (d.primeiroNome || 'você') + ' · ' + hoje, W - M, 55, { align: 'right' });
+    // rodapé
+    doc.setDrawColor(C.linha); doc.setLineWidth(0.5); doc.line(M, H - 54, W - M, H - 54);
+    doc.setFontSize(8); doc.setTextColor(C.suave);
+    doc.text('Virtus Wealth Consultoria de Investimentos · CNPJ 65.691.071/0001-23', M, H - 38);
+    doc.text(String(pagina), W - M, H - 38, { align: 'right' });
+  }
+
+  function eyebrow(t, y, cor, x) {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(cor || C.ciano);
+    doc.text(t.toUpperCase(), x || M, y, { charSpace: 1.5 });
+  }
+  function titulo(t, y, tam) {
+    doc.setFont('times', 'italic'); doc.setFontSize(tam || 30); doc.setTextColor(C.texto);
+    const linhas = doc.splitTextToSize(t, W - 2 * M);
+    doc.text(linhas, M, y);
+    return y + linhas.length * (tam || 30) * 1.1;
+  }
+  function paragrafo(t, x, y, largura, opts) {
+    const o = Object.assign({ tam: 11, cor: C.suave, estilo: 'normal', entre: 1.45 }, opts || {});
+    doc.setFont('helvetica', o.estilo); doc.setFontSize(o.tam); doc.setTextColor(o.cor);
+    const linhas = doc.splitTextToSize(t, largura);
+    doc.text(linhas, x, y, { lineHeightFactor: o.entre });
+    return y + linhas.length * o.tam * o.entre;
+  }
+  function caixa(x, y, w, h, cor, borda) {
+    doc.setFillColor(cor || C.cartao); doc.roundedRect(x, y, w, h, 8, 8, 'F');
+    if (borda) { doc.setFillColor(borda); doc.rect(x, y + 8, 3, h - 16, 'F'); }
+  }
+  function altura(t, largura, tam, entre) {
+    doc.setFontSize(tam);
+    return doc.splitTextToSize(t, largura).length * tam * (entre || 1.45);
+  }
+
+  // ================= Página 1: onde você está =================
+  novaPagina();
+  let y = 130;
+  eyebrow(d.ot ? 'Diagnóstico para oficial temporário' : 'Diagnóstico financeiro', y);
+  y = titulo('Olá, ' + (d.primeiroNome || 'tudo bem') + '.', y + 36, 34);
+  y = paragrafo('Este é o retrato da sua vida financeira a partir do que você respondeu. Os valores são aproximados e servem como ponto de partida para a nossa conversa.', M, y + 4, W - 2 * M, { tam: 11.5 });
+
+  // Fase
+  y += 22;
+  const larguraFase = W - 2 * M - 40;
+  const hFase = 64 + altura(d.fase.texto, larguraFase, 11);
+  caixa(M, y, W - 2 * M, hFase, C.cartao, C.ciano);
+  eyebrow('Sua fase hoje · ' + d.fase.numero + ' de 3', y + 26, C.ciano, M + 20);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(17); doc.setTextColor(C.texto);
+  doc.text(d.fase.nome, M + 20, y + 50);
+  paragrafo(d.fase.texto, M + 20, y + 70, larguraFase, { tam: 11 });
+  y += hFase + 30;
+
+  // Números
+  eyebrow('Onde você está hoje', y);
+  y += 16;
+  const faixa = (id, valor) => (d.ot ? brl(valor) : (d.faixas[id] || brl(valor)));
+  const stats = [
+    { r: d.ot ? 'Cai na conta por mês' : 'Renda mensal', v: faixa('renda', d.renda) },
+    { r: 'Investe por mês', v: faixa('aporte', d.aporte) },
+    { r: 'Já tem guardado', v: faixa('patrimonio', d.patrimonio) },
+    { r: d.ot ? 'Parte da renda investida' : 'Parte da renda investida (aprox.)', v: pct(d.taxaPoupanca) },
+  ];
+  if (d.ot) {
+    stats.push({ r: 'Fatura média do cartão', v: brl(d.cartao), alerta: d.renda > 0 && d.cartao / d.renda >= 0.3 });
+    stats.push({ r: 'Reserva ideal (6 meses)', v: brl(d.reservaIdeal) });
+  }
+  const colW = (W - 2 * M - 14) / 2, cardH = 70;
+  stats.forEach((s, i) => {
+    const cx = M + (i % 2) * (colW + 14);
+    const cy = y + Math.floor(i / 2) * (cardH + 12);
+    caixa(cx, cy, colW, cardH);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(C.suave);
+    doc.text(s.r, cx + 18, cy + 26);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(s.v.length > 14 ? 13 : 20); doc.setTextColor(s.alerta ? C.laranja : C.texto);
+    doc.text(s.v, cx + 18, cy + 50);
+  });
+  y += Math.ceil(stats.length / 2) * (cardH + 12) + 14;
+
+  if (d.objetivoTexto && y < H - 120) {
+    eyebrow('O que você quer resolver', y);
+    paragrafo(d.objetivoTexto, M, y + 20, W - 2 * M, { tam: 13, cor: C.texto });
+  }
+
+  // ================= Página 2: pontos de atenção =================
+  novaPagina();
+  y = 130;
+  eyebrow('Pontos de atenção', y);
+  y = titulo('O que mais pesa na sua vida financeira hoje', y + 36, 26);
+  y += 10;
+  d.pontos.forEach((p, i) => {
+    const larg = W - 2 * M - 80;
+    const hTexto = altura(p.texto, larg, 10.5);
+    const hTit = altura(p.titulo, larg, 13.5, 1.25);
+    const h = 40 + hTit + hTexto;
+    if (y + h > H - 80) return;
+    caixa(M, y, W - 2 * M, h);
+    doc.setFont('times', 'italic'); doc.setFontSize(30); doc.setTextColor(C.ciano);
+    doc.text(String(i + 1), M + 22, y + 40);
+    const yt = paragrafo(p.titulo, M + 64, y + 28, larg, { tam: 13.5, cor: C.texto, estilo: 'bold', entre: 1.25 });
+    paragrafo(p.texto, M + 64, yt + 4, larg, { tam: 10.5 });
+    y += h + 12;
+  });
+
+  // ================= Página 3: projeção e próximo passo =================
+  novaPagina();
+  y = 130;
+  eyebrow(d.ot ? 'Até a sua saída do Exército' : 'Os próximos ' + d.anos + ' anos', y);
+  const tit = d.ot
+    ? 'Quanto você pode ter em ' + d.anoFinal
+    : 'Quanto você pode ter em ' + d.anoFinal;
+  y = titulo(tit, y + 36, 26);
+
+  doc.setFont('times', 'normal'); doc.setFontSize(46); doc.setTextColor(C.ciano);
+  doc.text(brl(d.proj.final), M, y + 34);
+  const aprox = d.ot ? '' : 'cerca de ';
+  y = paragrafo('Investindo ' + aprox + brl(d.aporte) + ' por mês a partir de ' + aprox + brl(d.patrimonio) + ' guardados, com rentabilidade de ' + pct(d.taxaAnual) + ' ao ano.' + (d.ot ? '' : ' Como você respondeu por faixas, os valores são estimados.'), M, y + 58, W - 2 * M, { tam: 11 });
+
+  // Gráfico de barras
+  y += 14;
+  const gH = 120, gW = W - 2 * M;
+  const serie = d.proj.serie;
+  const maxV = Math.max.apply(null, serie.concat([1]));
+  const n = serie.length;
+  const gap = n > 12 ? 4 : 8;
+  const bw = (gW - gap * (n - 1)) / n;
+  serie.forEach((v, i) => {
+    const bh = Math.max(2, (v / maxV) * gH);
+    doc.setFillColor(i === n - 1 ? C.ciano : C.cianoEsc);
+    doc.rect(M + i * (bw + gap), y + gH - bh, bw, bh, 'F');
+    const passo = n > 12 ? 2 : 1;
+    if (i % passo === 0 || i === n - 1) {
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(8); doc.setTextColor(C.suave);
+      doc.text(String(d.anoAtual + i), M + i * (bw + gap) + bw / 2, y + gH + 14, { align: 'center' });
+    }
+  });
+  y += gH + 30;
+
+  // Investido x rendimento
+  const metade = (W - 2 * M - 14) / 2;
+  [['Saiu do seu bolso', d.proj.investido], ['Veio dos rendimentos', d.proj.juros]].forEach((s, i) => {
+    const cx = M + i * (metade + 14);
+    caixa(cx, y, metade, 56);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(C.suave);
+    doc.text(s[0], cx + 18, y + 22);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(17); doc.setTextColor(C.texto);
+    doc.text(brl(s[1]), cx + 18, y + 44);
+  });
+  y += 70;
+
+  // Meta
+  const textoMeta = d.aporteParaMeta <= 0 || d.proj.final >= d.meta
+    ? 'Nesse ritmo você passa de ' + brl(d.meta) + ' até ' + d.anoFinal + '. O trabalho agora é manter o plano e proteger esse caminho.'
+    : 'Para chegar a ' + brl(d.meta) + ' até ' + d.anoFinal + ', o aporte precisa ser de ' + brl(d.aporteParaMeta) + ' por mês. Promoções, férias e 13º ajudam a fechar essa conta.';
+  const hMeta = 30 + altura(textoMeta, W - 2 * M - 40, 11.5);
+  caixa(M, y, W - 2 * M, hMeta, C.cartao, C.laranja);
+  paragrafo(textoMeta, M + 20, y + 24, W - 2 * M - 40, { tam: 11.5, cor: C.texto });
+  y += hMeta + 14;
+
+  // Próximo passo
+  const textoPasso = 'Este PDF mostra o retrato. O plano vem na conversa: em 45 minutos, sem custo, eu olho os seus números com você e mostro o que fazer primeiro.';
+  const hPasso = 96 + altura(textoPasso, W - 2 * M - 40, 11);
+  if (y + hPasso < H - 90) {
+    doc.setFillColor(C.ciano); doc.roundedRect(M, y, W - 2 * M, hPasso, 8, 8, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(C.tinta);
+    doc.text('PRÓXIMO PASSO', M + 20, y + 26, { charSpace: 1.5 });
+    const yp = paragrafo(textoPasso, M + 20, y + 46, W - 2 * M - 40, { tam: 11, cor: C.tinta });
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(C.tinta);
+    const link = 'https://wa.me/' + window.CONFIG.whatsapp + '?text=' + encodeURIComponent('Oi Renato, recebi meu diagnóstico e quero conversar.');
+    doc.textWithLink('Chamar o Renato no WhatsApp  >', M + 20, yp + 14, { url: link });
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
+    doc.text('Renato Colete · Especialista em Investimentos ANBIMA (CEA)', M + 20, yp + 32);
+    y += hPasso + 14;
+  }
+
+  paragrafo('Simulação com rentabilidade de ' + pct(d.taxaAnual) + ' ao ano, sem descontar inflação nem imposto. Não é promessa de rentabilidade. Rentabilidade passada não garante resultado futuro.', M, Math.min(y + 4, H - 74), W - 2 * M, { tam: 8 });
+
+  return doc;
+};
