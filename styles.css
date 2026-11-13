@@ -72,6 +72,19 @@ h3 { font-size: 18px; font-weight: 700; }
 .cartao .eyebrow { color: var(--ciano); font-size: 11px; }
 .cartao.destaque { border-left: 4px solid var(--ciano); }
 .cartao .numero { font-family: var(--serif); font-size: 48px; color: var(--ciano) !important; line-height: 1; }
+.btn-whats { background: #25D366; color: #06210F; }
+.quem-topo { display: flex; gap: 14px; align-items: center; }
+.quem-topo img { border-radius: 50%; object-fit: cover; flex: none; border: 2px solid var(--ciano); }
+.quem-topo h3 { margin: 2px 0; }
+.quem-topo p:last-child { font-size: 13px; }
+.cartao.quem b { color: var(--texto); }
+.radar-topo { display: flex; justify-content: space-between; align-items: baseline; }
+.nota360 { color: var(--suave) !important; font-size: 14px; }
+.nota360 span { font-family: var(--serif); font-size: 40px; color: var(--ciano); }
+.radar { width: 100%; height: auto; overflow: visible; }
+.radar .rot { fill: var(--texto); font: 700 10.5px var(--sans); }
+.radar .val { fill: var(--ciano); font: 400 10.5px var(--sans); }
+.radar .val.baixa { fill: var(--laranja); }
 .nota { color: var(--suave); font-size: 13px; text-align: center; }
 
 .rodape { color: #646B76; font-size: 12px; text-align: center; padding: 20px; line-height: 1.6; }

@@ -1,15 +1,54 @@
-// Perguntas das duas versões do diagnóstico.
+﻿// Perguntas das duas versões do diagnóstico.
 // Versão geral:              link normal (ex.: .../diagnostico/)
 // Versão oficial temporário: mesmo link com ?p=ot (ex.: .../diagnostico/?p=ot)
 
 (function () {
   const anoAtual = new Date().getFullYear();
 
+  // Os dados de contato ficam no fim: a pessoa já investiu tempo nas respostas e quer ver o resultado.
   const contato = {
     id: 'contato', tipo: 'contato',
-    titulo: 'Para onde eu mando o seu diagnóstico?',
+    titulo: 'Último passo: para onde eu mando o seu diagnóstico?',
     ajuda: 'O PDF aparece na tela e também chega no seu e-mail.',
+    consentimento: 'Autorizo a Virtus Wealth a usar estas informações para montar o meu diagnóstico e falar comigo pelo WhatsApp ou e-mail.',
   };
+
+  const protecao = {
+    id: 'protecao', tipo: 'single',
+    titulo: 'Alguém depende da sua renda hoje?',
+    ajuda: 'Cônjuge, filhos, pais. Isso entra na parte de proteção do diagnóstico.',
+    opcoes: [
+      { v: 'so_eu', t: 'Não, hoje é só eu' },
+      { v: 'tem_seguro', t: 'Sim, e tenho seguro de vida' },
+      { v: 'sem_seguro', t: 'Sim, e não tenho seguro de vida' },
+      { v: 'nao_sei', t: 'Tenho seguro, mas não sei se cobre o suficiente' },
+    ],
+  };
+
+  const conversa = {
+    id: 'conversa', tipo: 'single',
+    titulo: 'Quer que eu analise esse resultado com você?',
+    ajuda: 'É uma conversa de 45 minutos, sem custo e sem compromisso.',
+    opcoes: [
+      { v: 'esta_semana', t: 'Sim, quero marcar essa semana' },
+      { v: 'mais_pra_frente', t: 'Sim, mas mais para frente' },
+      { v: 'so_pdf', t: 'Por enquanto, só quero o PDF' },
+    ],
+  };
+
+  const horario = {
+    id: 'horario', tipo: 'single',
+    titulo: 'Qual o melhor horário para falar com você?',
+    opcoes: [
+      { v: 'manha', t: 'Dia de semana, de manhã' },
+      { v: 'tarde', t: 'Dia de semana, à tarde' },
+      { v: 'noite', t: 'Dia de semana, à noite' },
+      { v: 'fds', t: 'Fim de semana' },
+    ],
+    mostrarSe: (r) => r.conversa && r.conversa !== 'so_pdf',
+  };
+
+  const finais = [protecao, conversa, horario, contato];
 
   const investe = {
     id: 'investe', tipo: 'single',
@@ -22,12 +61,6 @@
     ],
   };
 
-  const consentimento = {
-    id: 'consentimento', tipo: 'consent',
-    titulo: 'Última etapa',
-    texto: 'Autorizo a Virtus Wealth a usar estas informações para montar o meu diagnóstico e entrar em contato comigo pelo WhatsApp ou e-mail.',
-  };
-
   // ---------- Versão geral (as perguntas do Linktree, com o furo das faixas de aporte corrigido) ----------
   const geral = {
     publico: 'geral',
@@ -37,7 +70,6 @@
       texto: 'Responda em 3 minutos e receba na hora um PDF com o retrato da sua vida financeira, os seus pontos de atenção e uma projeção do seu patrimônio.',
     },
     perguntas: [
-      contato,
       {
         id: 'objetivo', tipo: 'single',
         titulo: 'Qual é o seu principal objetivo financeiro hoje?',
@@ -116,7 +148,7 @@
           { v: 700000, t: 'Acima de R$ 500 mil' },
         ],
       },
-      consentimento,
+      ...finais,
     ],
   };
 
@@ -133,7 +165,6 @@
       texto: 'Responda em 3 minutos e receba na hora um PDF com o retrato da sua vida financeira e uma projeção do patrimônio que você pode ter no dia do licenciamento.',
     },
     perguntas: [
-      contato,
       {
         id: 'posto', tipo: 'single',
         titulo: 'Qual é a sua situação hoje?',
@@ -209,7 +240,7 @@
         aceitaZero: true,
       },
       investe,
-      consentimento,
+      ...finais,
     ],
   };
 

@@ -54,15 +54,92 @@ window.gerarPDF = function (d) {
     return doc.splitTextToSize(t, largura).length * tam * (entre || 1.45);
   }
 
-  // ================= Página 1: onde você está =================
+  // ================= Página 1: Diagnóstico 360 =================
   novaPagina();
-  let y = 130;
+  let y = 120;
   eyebrow(d.ot ? 'Diagnóstico para oficial temporário' : 'Diagnóstico financeiro', y);
   y = titulo('Olá, ' + (d.primeiroNome || 'tudo bem') + '.', y + 36, 34);
-  y = paragrafo('Este é o retrato da sua vida financeira a partir do que você respondeu. Os valores são aproximados e servem como ponto de partida para a nossa conversa.', M, y + 4, W - 2 * M, { tam: 11.5 });
+  y = paragrafo('Este é o retrato da sua vida financeira a partir do que você respondeu. Cada área recebeu uma nota de 1 a 10. Quanto mais aberto o desenho, mais equilibrada está a sua vida financeira.', M, y + 4, W - 2 * M, { tam: 11.5 });
+
+  y += 18;
+  eyebrow('Diagnóstico 360', y);
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(C.texto);
+  doc.text('Nota geral', W - M - 70, y, { align: 'right' });
+  doc.setFont('times', 'normal'); doc.setFontSize(30); doc.setTextColor(C.ciano);
+  doc.text(String(d.nota360), W - M - 22, y + 4, { align: 'right' });
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(C.suave);
+  doc.text('/100', W - M, y + 4, { align: 'right' });
+
+  desenharRadar(W / 2, y + 205, 128, d.areas);
+  y += 410;
+
+  // Ponto forte e ponto fraco
+  const metadeR = (W - 2 * M - 14) / 2;
+  [
+    { r: 'Seu ponto mais forte', a: d.maisForte, cor: C.ciano },
+    { r: 'O que pede atenção primeiro', a: d.maisFraca, cor: C.laranja },
+  ].forEach((s, i) => {
+    const cx = M + i * (metadeR + 14);
+    caixa(cx, y, metadeR, 66, C.cartao, s.cor);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(C.suave);
+    doc.text(s.r, cx + 20, y + 25);
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(14); doc.setTextColor(C.texto);
+    doc.text(s.a.nome + '  ' + s.a.nota + '/10', cx + 20, y + 48);
+  });
+  doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(C.ciano);
+  const chamada = 'Quer entender o seu resultado? Fale comigo no WhatsApp  >';
+  doc.textWithLink(chamada, W / 2 - doc.getTextWidth(chamada) / 2, y + 92, { url: d.whatsPrincipal });
+
+  function desenharRadar(cx, cy, R, areas) {
+    const n = areas.length;
+    const ponto = (i, raio) => {
+      const ang = -Math.PI / 2 + (2 * Math.PI * i) / n;
+      return [cx + raio * Math.cos(ang), cy + raio * Math.sin(ang)];
+    };
+    // anéis de 2 em 2 pontos
+    doc.setLineWidth(0.6); doc.setDrawColor(C.linha);
+    for (let k = 1; k <= 5; k++) {
+      const raio = (R * k) / 5;
+      for (let i = 0; i < n; i++) {
+        const a = ponto(i, raio), b = ponto((i + 1) % n, raio);
+        doc.line(a[0], a[1], b[0], b[1]);
+      }
+    }
+    for (let i = 0; i < n; i++) {
+      const a = ponto(i, R);
+      doc.line(cx, cy, a[0], a[1]);
+    }
+    // área preenchida com as notas
+    const pts = areas.map((ar, i) => ponto(i, (R * ar.nota) / 10));
+    const deltas = pts.slice(1).map((p, i) => [p[0] - pts[i][0], p[1] - pts[i][1]]);
+    doc.setFillColor(C.ciano); doc.setDrawColor(C.ciano);
+    doc.setGState(new doc.GState({ opacity: 0.22 }));
+    doc.lines(deltas, pts[0][0], pts[0][1], [1, 1], 'F', true);
+    doc.setGState(new doc.GState({ opacity: 1 }));
+    doc.setLineWidth(2);
+    doc.lines(deltas, pts[0][0], pts[0][1], [1, 1], 'S', true);
+    pts.forEach((p) => doc.circle(p[0], p[1], 3, 'F'));
+    // rótulos
+    areas.forEach((ar, i) => {
+      const p = ponto(i, R + 20);
+      const alinhar = Math.abs(p[0] - cx) < 5 ? 'center' : p[0] > cx ? 'left' : 'right';
+      const dy = p[1] < cy - R * 0.5 ? -10 : p[1] > cy + R * 0.5 ? 6 : -4;
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(C.texto);
+      doc.text(ar.nome, p[0], p[1] + dy, { align: alinhar });
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(10);
+      doc.setTextColor(ar.nota <= 4 ? C.laranja : C.ciano);
+      doc.text(ar.nota + '/10', p[0], p[1] + dy + 13, { align: alinhar });
+    });
+  }
+
+  // ================= Página 2: onde você está =================
+  novaPagina();
+  y = 130;
+  eyebrow('Onde você está hoje', y);
+  y = titulo('Os seus números', y + 36, 26);
 
   // Fase
-  y += 22;
+  y += 6;
   const larguraFase = W - 2 * M - 40;
   const hFase = 64 + altura(d.fase.texto, larguraFase, 11);
   caixa(M, y, W - 2 * M, hFase, C.cartao, C.ciano);
@@ -73,7 +150,7 @@ window.gerarPDF = function (d) {
   y += hFase + 30;
 
   // Números
-  eyebrow('Onde você está hoje', y);
+  eyebrow('Números principais', y);
   y += 16;
   const faixa = (id, valor) => (d.ot ? brl(valor) : (d.faixas[id] || brl(valor)));
   const stats = [
@@ -113,13 +190,17 @@ window.gerarPDF = function (d) {
     const larg = W - 2 * M - 80;
     const hTexto = altura(p.texto, larg, 10.5);
     const hTit = altura(p.titulo, larg, 13.5, 1.25);
-    const h = 40 + hTit + hTexto;
+    const h = 58 + hTit + hTexto;
     if (y + h > H - 80) return;
     caixa(M, y, W - 2 * M, h);
     doc.setFont('times', 'italic'); doc.setFontSize(30); doc.setTextColor(C.ciano);
     doc.text(String(i + 1), M + 22, y + 40);
     const yt = paragrafo(p.titulo, M + 64, y + 28, larg, { tam: 13.5, cor: C.texto, estilo: 'bold', entre: 1.25 });
-    paragrafo(p.texto, M + 64, yt + 4, larg, { tam: 10.5 });
+    const yl = paragrafo(p.texto, M + 64, yt + 4, larg, { tam: 10.5 });
+    if (p.whats) {
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(C.ciano);
+      doc.textWithLink('Conversar sobre isso no WhatsApp  >', M + 64, yl + 8, { url: p.whats });
+    }
     y += h + 12;
   });
 
@@ -178,23 +259,105 @@ window.gerarPDF = function (d) {
   paragrafo(textoMeta, M + 20, y + 24, W - 2 * M - 40, { tam: 11.5, cor: C.texto });
   y += hMeta + 14;
 
-  // Próximo passo
-  const textoPasso = 'Este PDF mostra o retrato. O plano vem na conversa: em 45 minutos, sem custo, eu olho os seus números com você e mostro o que fazer primeiro.';
-  const hPasso = 96 + altura(textoPasso, W - 2 * M - 40, 11);
-  if (y + hPasso < H - 90) {
+  paragrafo('Simulação com rentabilidade de ' + pct(d.taxaAnual) + ' ao ano, sem descontar inflação nem imposto. Não é promessa de rentabilidade. Rentabilidade passada não garante resultado futuro.', M, y + 4, W - 2 * M, { tam: 8 });
+
+  // ================= Página 5: plano dos próximos 30 dias =================
+  novaPagina();
+  y = 130;
+  eyebrow('O que fazer agora', y);
+  y = titulo('Seu plano para os próximos 30 dias', y + 36, 26);
+  y = paragrafo('Uma ação para cada área que ficou com a nota mais baixa. Dá para fazer sozinho, e cada uma já melhora o seu resultado.', M, y + 2, W - 2 * M, { tam: 11 });
+  y += 16;
+  d.plano30.forEach((a, i) => {
+    const larg = W - 2 * M - 70;
+    const h = 46 + altura(a.texto, larg, 10.5);
+    caixa(M, y, W - 2 * M, h);
+    doc.setDrawColor(C.ciano); doc.setLineWidth(1.5);
+    doc.roundedRect(M + 20, y + 18, 16, 16, 3, 3, 'S');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(C.ciano);
+    doc.text(('Semana ' + (i + 1) + ' · ' + a.area).toUpperCase(), M + 50, y + 26, { charSpace: 1 });
+    paragrafo(a.texto, M + 50, y + 42, larg, { tam: 10.5, cor: C.texto });
+    y += h + 10;
+  });
+
+  y += 8;
+  const textoPasso = 'O plano completo sai numa conversa de 45 minutos, sem custo: eu olho os seus números com você, mostro o que fazer primeiro e quanto isso muda o seu resultado em ' + d.anoFinal + '.';
+  const hPasso = 92 + altura(textoPasso, W - 2 * M - 40, 11);
+  if (y + hPasso < H - 70) {
     doc.setFillColor(C.ciano); doc.roundedRect(M, y, W - 2 * M, hPasso, 8, 8, 'F');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(C.tinta);
     doc.text('PRÓXIMO PASSO', M + 20, y + 26, { charSpace: 1.5 });
     const yp = paragrafo(textoPasso, M + 20, y + 46, W - 2 * M - 40, { tam: 11, cor: C.tinta });
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(12); doc.setTextColor(C.tinta);
-    const link = 'https://wa.me/' + window.CONFIG.whatsapp + '?text=' + encodeURIComponent('Oi Renato, recebi meu diagnóstico e quero conversar.');
-    doc.textWithLink('Chamar o Renato no WhatsApp  >', M + 20, yp + 14, { url: link });
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(9);
-    doc.text('Renato Colete · Especialista em Investimentos ANBIMA (CEA)', M + 20, yp + 32);
-    y += hPasso + 14;
+    botao(M + 20, yp + 2, 260, 30, 'Marcar minha conversa no WhatsApp', d.whatsPrincipal, C.fundo, C.texto);
   }
 
-  paragrafo('Simulação com rentabilidade de ' + pct(d.taxaAnual) + ' ao ano, sem descontar inflação nem imposto. Não é promessa de rentabilidade. Rentabilidade passada não garante resultado futuro.', M, Math.min(y + 4, H - 74), W - 2 * M, { tam: 8 });
+  // ================= Página 6: quem vai te acompanhar =================
+  novaPagina();
+  y = 120;
+  eyebrow('Quem vai te acompanhar', y);
+  const foto = d.ot ? window.FOTO_RENATO_FARDA : window.FOTO_RENATO;
+  if (foto) doc.addImage(foto, 'JPEG', M, y + 18, 120, 120);
+  let yq = y + 44;
+  doc.setFont('times', 'italic'); doc.setFontSize(28); doc.setTextColor(C.texto);
+  doc.text('Renato Colete', M + 140, yq);
+  doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(C.ciano);
+  doc.text('Consultor Virtus Wealth', M + 140, yq + 20);
+  const credenciais = [
+    'Especialista em Investimentos ANBIMA (CEA)',
+    'MBA em Planejamento Financeiro (FGV)',
+    '1º Tenente do Exército, NPOR de Engenharia 2019',
+    'Atendendo militares desde 2022',
+  ];
+  doc.setFontSize(10.5); doc.setTextColor(C.suave);
+  credenciais.forEach((c, i) => doc.text(c, M + 140, yq + 42 + i * 16));
+  y += 160;
+
+  // números
+  const nums = [['+30', 'famílias atendidas por mim'], ['R$ 60 mi', 'acompanhados pelo time'], ['5 de 6', 'consultores são militares ou ex-militares']];
+  const nw = (W - 2 * M - 20) / nums.length;
+  nums.forEach((nmr, i) => {
+    const cx = M + i * (nw + 10);
+    caixa(cx, y, nw, 64);
+    doc.setFont('times', 'normal'); doc.setFontSize(22); doc.setTextColor(C.ciano);
+    doc.text(nmr[0], cx + 14, y + 30);
+    paragrafo(nmr[1], cx + 14, y + 47, nw - 24, { tam: 8.5, entre: 1.3 });
+  });
+  y += 82;
+
+  eyebrow('Como funciona a consultoria', y);
+  y += 14;
+  const etapas = [
+    ['Diagnóstico', 'Conversa de 45 minutos sobre a sua realidade, sem custo.'],
+    ['Plano', 'Orçamento, reserva e carteira montados para os seus objetivos.'],
+    ['Implementação', 'O dinheiro fica na sua conta, na corretora que você escolher. Eu oriento, você aprova.'],
+    ['Acompanhamento', 'Relatório todo mês, revisão a cada trimestre e o app Central Virtus no celular.'],
+  ];
+  etapas.forEach((e, i) => {
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10.5); doc.setTextColor(C.texto);
+    doc.text((i + 1) + '. ' + e[0], M, y + 12);
+    paragrafo(e[1], M + 120, y + 12, W - 2 * M - 120, { tam: 10, entre: 1.35 });
+    y += altura(e[1], W - 2 * M - 120, 10, 1.35) + 10;
+  });
+  y += 6;
+
+  const garantias = 'Remuneração 100% fee based: a Virtus não recebe comissão de nenhum produto, só a mensalidade paga por você. Sem multa e sem tempo mínimo. E se usar o primeiro mês e não gostar, o valor volta inteiro.';
+  const hG = 26 + altura(garantias, W - 2 * M - 40, 10.5);
+  caixa(M, y, W - 2 * M, hG, C.cartao, C.ciano);
+  paragrafo(garantias, M + 20, y + 20, W - 2 * M - 40, { tam: 10.5, cor: C.texto });
+  y += hG + 14;
+
+  if (y + 70 < H - 60) {
+    botao(M, y, W - 2 * M, 40, 'Falar com o Renato no WhatsApp', d.whatsPrincipal, C.ciano, C.tinta);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(9); doc.setTextColor(C.suave);
+    doc.text('(67) 9 9299-3734 · @renatocolete no Instagram · virtuswealth.com.br', W / 2, y + 58, { align: 'center' });
+  }
+
+  function botao(x, yb, w, h, texto, url, fundo, cor) {
+    doc.setFillColor(fundo); doc.roundedRect(x, yb, w, h, 6, 6, 'F');
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(cor);
+    doc.text(texto + '  >', x + w / 2, yb + h / 2 + 4, { align: 'center' });
+    doc.link(x, yb, w, h, { url: url });
+  }
 
   return doc;
 };
