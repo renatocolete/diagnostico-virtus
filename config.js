@@ -7,8 +7,8 @@ window.CONFIG = {
   // WhatsApp do Renato, só números, com 55 e DDD. Ex.: '5567999998888'
   whatsapp: '5567992993734',
 
-  // Rentabilidade usada na projeção (10% ao ano, a mesma que o Renato usa nas reuniões).
-  taxaAnual: 0.10,
+  // Rentabilidade usada na projeção (12% ao ano).
+  taxaAnual: 0.12,
 
   // Metas usadas na pergunta "quanto precisa investir por mês para chegar lá".
   metaTemporario: 500000,
