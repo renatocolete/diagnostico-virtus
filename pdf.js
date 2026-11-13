@@ -1,4 +1,4 @@
-// Gera o PDF personalizado (A4, 3 páginas) com a identidade da Virtus.
+﻿// Gera o PDF personalizado (A4, 3 páginas) com a identidade da Virtus.
 
 window.gerarPDF = function (d) {
   const { jsPDF } = window.jspdf;
@@ -50,7 +50,7 @@ window.gerarPDF = function (d) {
     if (borda) { doc.setFillColor(borda); doc.rect(x, y + 8, 3, h - 16, 'F'); }
   }
   function altura(t, largura, tam, entre) {
-    doc.setFontSize(tam);
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(tam);
     return doc.splitTextToSize(t, largura).length * tam * (entre || 1.45);
   }
 
@@ -179,6 +179,7 @@ window.gerarPDF = function (d) {
     eyebrow('O que você quer resolver', y);
     paragrafo(d.objetivoTexto, M, y + 20, W - 2 * M, { tam: 13, cor: C.texto });
   }
+  botao(M, H - 128, W - 2 * M, 38, 'Quero ajuda para sair da fase ' + d.fase.numero, d.whatsFase, C.cartao, C.ciano);
 
   // ================= Página 2: pontos de atenção =================
   novaPagina();
@@ -208,19 +209,55 @@ window.gerarPDF = function (d) {
   novaPagina();
   y = 130;
   eyebrow(d.ot ? 'Até a sua saída do Exército' : 'Os próximos ' + d.anos + ' anos', y);
-  const tit = d.ot
-    ? 'Quanto você pode ter em ' + d.anoFinal
-    : 'Quanto você pode ter em ' + d.anoFinal;
-  y = titulo(tit, y + 36, 26);
-
+  y = titulo(d.ot && d.pecuniaria > 0 ? 'Com quanto você sai do Exército em ' + d.anoFinal : 'Quanto você pode ter em ' + d.anoFinal, y + 36, 26);
+  const totalFinal = d.ot ? d.totalSaida : d.proj.final;
   doc.setFont('times', 'normal'); doc.setFontSize(46); doc.setTextColor(C.ciano);
-  doc.text(brl(d.proj.final), M, y + 34);
-  const aprox = d.ot ? '' : 'cerca de ';
-  y = paragrafo('Investindo ' + aprox + brl(d.aporte) + ' por mês a partir de ' + aprox + brl(d.patrimonio) + ' guardados, com rentabilidade de ' + pct(d.taxaAnual) + ' ao ano.' + (d.ot ? '' : ' Como você respondeu por faixas, os valores são estimados.'), M, y + 58, W - 2 * M, { tam: 11 });
+  doc.text(brl(totalFinal), M, y + 34);
+  y += 52;
 
-  // Gráfico de barras
-  y += 14;
-  const gH = 120, gW = W - 2 * M;
+  // Calculadora de juros compostos: os dados de entrada à esquerda, o resultado à direita
+  const aprox = d.ot ? '' : 'cerca de ';
+  const meses = d.anos * 12;
+  const entradas = [
+    ['Valor inicial', aprox + brl(d.patrimonio)],
+    ['Aporte mensal', aprox + brl(d.aporte)],
+    ['Taxa de juros', pct(d.taxaAnual) + ' ao ano'],
+    ['Período', d.anos + (d.anos === 1 ? ' ano' : ' anos') + ' (' + meses + ' meses)'],
+  ];
+  const saidas = [
+    ['Total investido', brl(d.proj.investido)],
+    ['Total em juros', brl(d.proj.juros)],
+    ['Valor dos investimentos', brl(d.proj.final), true],
+  ];
+  if (d.ot && d.pecuniaria > 0) {
+    saidas.push(['+ Pecuniária estimada', brl(d.pecuniaria)]);
+    saidas.push(['= Total na saída', brl(d.totalSaida), true]);
+  }
+  const linhaH = 21;
+  const hCalc = 44 + Math.max(entradas.length, saidas.length) * linhaH;
+  caixa(M, y, W - 2 * M, hCalc);
+  const colCalc = (W - 2 * M) / 2;
+  eyebrow('Os dados', y + 24, C.suave, M + 20);
+  eyebrow('O resultado', y + 24, C.ciano, M + colCalc + 10);
+  doc.setDrawColor(C.linha); doc.setLineWidth(0.5); doc.line(M + colCalc, y + 14, M + colCalc, y + hCalc - 14);
+  entradas.forEach((e, i) => {
+    const ly = y + 46 + i * linhaH;
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(10.5); doc.setTextColor(C.suave);
+    doc.text(e[0], M + 20, ly);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(C.texto);
+    doc.text(e[1], M + colCalc - 16, ly, { align: 'right' });
+  });
+  saidas.forEach((s, i) => {
+    const ly = y + 46 + i * linhaH;
+    doc.setFont('helvetica', s[2] ? 'bold' : 'normal'); doc.setFontSize(10.5); doc.setTextColor(s[2] ? C.texto : C.suave);
+    doc.text(s[0], M + colCalc + 10, ly);
+    doc.setFont('helvetica', 'bold'); doc.setTextColor(s[2] ? C.ciano : C.texto);
+    doc.text(s[1], W - M - 20, ly, { align: 'right' });
+  });
+  y += hCalc + 18;
+
+  // Gráfico de barras com a evolução dos investimentos ano a ano
+  const gH = 96, gW = W - 2 * M;
   const serie = d.proj.serie;
   const maxV = Math.max.apply(null, serie.concat([1]));
   const n = serie.length;
@@ -236,29 +273,24 @@ window.gerarPDF = function (d) {
       doc.text(String(d.anoAtual + i), M + i * (bw + gap) + bw / 2, y + gH + 14, { align: 'center' });
     }
   });
-  y += gH + 30;
-
-  // Investido x rendimento
-  const metade = (W - 2 * M - 14) / 2;
-  [['Saiu do seu bolso', d.proj.investido], ['Veio dos rendimentos', d.proj.juros]].forEach((s, i) => {
-    const cx = M + i * (metade + 14);
-    caixa(cx, y, metade, 56);
-    doc.setFont('helvetica', 'normal'); doc.setFontSize(10); doc.setTextColor(C.suave);
-    doc.text(s[0], cx + 18, y + 22);
-    doc.setFont('helvetica', 'bold'); doc.setFontSize(17); doc.setTextColor(C.texto);
-    doc.text(brl(s[1]), cx + 18, y + 44);
-  });
-  y += 70;
+  y += gH + 28;
 
   // Meta
-  const textoMeta = d.aporteParaMeta <= 0 || d.proj.final >= d.meta
+  const passa = d.aporteParaMeta <= 0 || totalFinal >= d.meta;
+  const textoMeta = passa
     ? 'Nesse ritmo você passa de ' + brl(d.meta) + ' até ' + d.anoFinal + '. O trabalho agora é manter o plano e proteger esse caminho.'
-    : 'Para chegar a ' + brl(d.meta) + ' até ' + d.anoFinal + ', o aporte precisa ser de ' + brl(d.aporteParaMeta) + ' por mês. Promoções, férias e 13º ajudam a fechar essa conta.';
+    : 'Para sair com ' + brl(d.meta) + ' em ' + d.anoFinal + (d.pecuniaria > 0 ? ', contando a pecuniária,' : '') + ' o aporte precisa ser de ' + brl(d.aporteParaMeta) + ' por mês. Promoções, férias e 13º ajudam a fechar essa conta.';
   const hMeta = 30 + altura(textoMeta, W - 2 * M - 40, 11.5);
   caixa(M, y, W - 2 * M, hMeta, C.cartao, C.laranja);
   paragrafo(textoMeta, M + 20, y + 24, W - 2 * M - 40, { tam: 11.5, cor: C.texto });
   y += hMeta + 14;
+  const textoBotaoMeta = passa ? 'Montar comigo o plano para manter esse ritmo' : 'Montar comigo o caminho até ' + brl(d.meta);
+  botao(M, y, W - 2 * M, 38, textoBotaoMeta, d.whatsMeta, C.cartao, C.ciano);
+  y += 52;
 
+  if (d.ot && d.pecuniaria > 0) {
+    y = paragrafo('Pecuniária estimada: ' + d.anosServico + ' anos de serviço (turma ' + d.turma + ' até ' + d.anoFinal + ') multiplicados por ' + d.basePecuniaria + ', ' + brl(d.baseSoldo) + '. A lei paga uma remuneração por ano de serviço, que inclui adicionais e costuma ser maior que o soldo; o valor também muda com reajustes. Use como estimativa conservadora.', M, y + 2, W - 2 * M, { tam: 8 });
+  }
   paragrafo('Simulação com rentabilidade de ' + pct(d.taxaAnual) + ' ao ano, sem descontar inflação nem imposto. Não é promessa de rentabilidade. Rentabilidade passada não garante resultado futuro.', M, y + 4, W - 2 * M, { tam: 8 });
 
   // ================= Página 5: plano dos próximos 30 dias =================
@@ -266,24 +298,27 @@ window.gerarPDF = function (d) {
   y = 130;
   eyebrow('O que fazer agora', y);
   y = titulo('Seu plano para os próximos 30 dias', y + 36, 26);
-  y = paragrafo('Uma ação para cada área que ficou com a nota mais baixa. Dá para fazer sozinho, e cada uma já melhora o seu resultado.', M, y + 2, W - 2 * M, { tam: 11 });
-  y += 16;
+  y = paragrafo('Uma ação por semana, começando pela área com a nota mais baixa.', M, y + 2, W - 2 * M, { tam: 11 });
+  y += 10;
   d.plano30.forEach((a, i) => {
     const larg = W - 2 * M - 70;
-    const h = 46 + altura(a.texto, larg, 10.5);
+    const h = 56 + altura(a.texto, larg, 10.5);
     caixa(M, y, W - 2 * M, h);
     doc.setDrawColor(C.ciano); doc.setLineWidth(1.5);
     doc.roundedRect(M + 20, y + 18, 16, 16, 3, 3, 'S');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(C.ciano);
     doc.text(('Semana ' + (i + 1) + ' · ' + a.area).toUpperCase(), M + 50, y + 26, { charSpace: 1 });
-    paragrafo(a.texto, M + 50, y + 42, larg, { tam: 10.5, cor: C.texto });
-    y += h + 10;
+    const ya = paragrafo(a.texto, M + 50, y + 42, larg, { tam: 10.5, cor: C.texto });
+    doc.setFont('helvetica', 'bold'); doc.setFontSize(10); doc.setTextColor(C.ciano);
+    doc.textWithLink('Fazer isso com o Renato  >', M + 50, ya + 3, { url: a.whats });
+    y += h + 8;
   });
 
   y += 8;
-  const textoPasso = 'O plano completo sai numa conversa de 45 minutos, sem custo: eu olho os seus números com você, mostro o que fazer primeiro e quanto isso muda o seu resultado em ' + d.anoFinal + '.';
+  const textoPasso = 'Marque agora a sua conversa de 45 minutos comigo, sem custo. A gente transforma esse plano em números da sua realidade: quanto guardar, onde investir e o que fazer com ' + (d.ot ? 'cada promoção e 13º' : 'o 13º e cada dinheiro extra') + ' até ' + d.anoFinal + '. E eu te mostro como funciona o acompanhamento.';
   const hPasso = 92 + altura(textoPasso, W - 2 * M - 40, 11);
-  if (y + hPasso < H - 70) {
+  if (y + hPasso > H - 70) { novaPagina(); y = 130; } // nunca deixa o próximo passo de fora
+  {
     doc.setFillColor(C.ciano); doc.roundedRect(M, y, W - 2 * M, hPasso, 8, 8, 'F');
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(C.tinta);
     doc.text('PRÓXIMO PASSO', M + 20, y + 26, { charSpace: 1.5 });

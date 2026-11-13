@@ -1,4 +1,4 @@
-// Transforma as respostas em diagnóstico: números, fase, pontos de atenção e projeção.
+﻿// Transforma as respostas em diagnóstico: números, fase, pontos de atenção e projeção.
 
 window.brl = function (v) {
   return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL', maximumFractionDigits: 0 })
@@ -36,7 +36,23 @@ window.gerarDiagnostico = function (r, publico) {
 
   const meta = ot ? cfg.metaTemporario : cfg.metaGeral;
   const proj = projetar(patrimonio, aporte, anos, cfg.taxaAnual);
-  const aporteParaMeta = aporteNecessario(patrimonio, meta, anos, cfg.taxaAnual);
+
+  // Compensação pecuniária estimada: um soldo (valores de hoje) por ano de serviço, até 8 anos
+  let pecuniaria = 0, anosServico = 0, baseSoldo = 0, basePecuniaria = '';
+  if (ot && r.posto !== 'saiu' && r.turma) {
+    anosServico = Math.min(cfg.anosMaximoTemporario, Math.max(1, anoFinal - Number(r.turma)));
+    if (r.posto === 'sgt') {
+      baseSoldo = renda;
+      basePecuniaria = 'a sua renda líquida de hoje';
+    } else {
+      const postoFinal = anosServico >= 3 ? '1ten' : '2ten';
+      baseSoldo = cfg.soldos[postoFinal];
+      basePecuniaria = 'o soldo de ' + (postoFinal === '1ten' ? '1º Tenente' : '2º Tenente') + ' em ' + cfg.anoSoldos;
+    }
+    pecuniaria = baseSoldo * anosServico;
+  }
+  const totalSaida = proj.final + pecuniaria;
+  const aporteParaMeta = aporteNecessario(patrimonio, Math.max(meta - pecuniaria, 0), anos, cfg.taxaAnual);
 
   // ---------- Pontos de atenção (em ordem de prioridade; o PDF usa os 4 primeiros) ----------
   const pontos = [];
@@ -108,7 +124,9 @@ window.gerarDiagnostico = function (r, publico) {
   if (ot && (tem('medo_sair') || r.objetivo === 'sair_com_patrimonio' || r.objetivo === 'transicao')) {
     pontos.push({
       titulo: r.posto === 'saiu' ? 'A transição já começou' : 'Faltam ' + anos + (anos === 1 ? ' ano' : ' anos') + ' para a sua saída',
-      texto: 'No ritmo de hoje, a projeção chega a ' + brl(proj.final) + ' em ' + anoFinal + '. A compensação pecuniária ajuda, mas sozinha ela não segura a transição para a vida civil. O plano precisa contar com promoções, férias e 13º, que são os meses em que dá para acelerar.',
+      texto: pecuniaria > 0
+        ? 'No ritmo de hoje, você sai em ' + anoFinal + ' com uns ' + brl(proj.final) + ' investidos, mais cerca de ' + brl(pecuniaria) + ' de pecuniária. Só a pecuniária paga uns ' + Math.round(pecuniaria / custoMensal) + ' meses do seu custo de vida. O plano precisa usar promoções, férias e 13º para acelerar.'
+        : 'No ritmo de hoje, a projeção chega a ' + brl(proj.final) + ' em ' + anoFinal + '. A compensação pecuniária ajuda, mas sozinha ela não segura a transição para a vida civil. O plano precisa usar promoções, férias e 13º para acelerar.',
     });
   }
 
@@ -227,7 +245,7 @@ window.gerarDiagnostico = function (r, publico) {
   if (patrimonio > reservaIdeal) inv += 2;
   areas.push({ nome: 'Investimentos', nota: lim(inv) });
 
-  let futuro = (proj.final / meta) * 10;
+  let futuro = (totalSaida / meta) * 10;
   if (tem('medo_sair')) futuro -= 2;
   areas.push({ nome: ot ? 'Preparo para a saída' : 'Plano para o futuro', nota: lim(futuro) });
 
@@ -257,24 +275,32 @@ window.gerarDiagnostico = function (r, publico) {
   const linkWhats = (texto) => 'https://wa.me/' + cfg.whatsapp + '?text=' + encodeURIComponent(texto);
   const apresent = 'Oi Renato, ' + (primeiro ? 'sou ' + primeiro + '. ' : '') + 'Fiz o diagnóstico financeiro' + (ot ? ' pelo Seja Oficial' : '');
   const whatsPrincipal = linkWhats(apresent + ' e tirei ' + nota360 + '/100. O que mais pesou foi ' + maisFraca.nome.toLowerCase() + '. Quero marcar a conversa para entender o que fazer primeiro.');
+  const whatsFase = linkWhats(apresent + '. Estou na fase "' + fase.nome + '" e quero ajuda para passar para a próxima.');
+  const whatsMeta = linkWhats(apresent + (totalSaida >= meta
+    ? '. Minha projeção passa de ' + brl(meta) + ' até ' + anoFinal + ' e quero um plano para manter esse ritmo.'
+    : '. Quero montar o caminho para chegar a ' + brl(meta) + ' até ' + anoFinal + '.'));
+  plano30.forEach((a) => {
+    a.whats = linkWhats(apresent + '. Quero ajuda para começar pela ação de ' + a.area.toLowerCase() + ' do meu plano de 30 dias.');
+  });
   pontos.slice(0, 4).forEach((p) => {
     p.whats = linkWhats(apresent + '. Apareceu este ponto no meu resultado: "' + p.titulo + '". Pode me ajudar com isso?');
   });
 
   return {
-    areas, nota360, maisFraca, maisForte, plano30, whatsPrincipal,
+    areas, nota360, maisFraca, maisForte, plano30, whatsPrincipal, whatsFase, whatsMeta,
     interesse: r.conversa, horario: r.horario,
     publico, ot, anoAtual, anoFinal, anos,
     nome: (r.nome || '').trim(),
     primeiroNome: ((r.nome || '').trim().split(/\s+/)[0] || ''),
     renda, aporte, patrimonio, cartao, taxaPoupanca, custoMensal, reservaIdeal,
     meta, aporteParaMeta, proj, fase,
+    pecuniaria, anosServico, baseSoldo, basePecuniaria, totalSaida, turma: r.turma,
     pontos: pontos.slice(0, 4),
-    objetivoTexto: textoOpcao('objetivo', r.objetivo),
+    objetivoTexto: textoOpcao('objetivo', r.objetivo, r),
     faixas: {
-      renda: textoOpcao('renda', r.renda),
-      aporte: textoOpcao('aporte', r.aporte),
-      patrimonio: textoOpcao('patrimonio', r.patrimonio),
+      renda: textoOpcao('renda', r.renda, r),
+      aporte: textoOpcao('aporte', r.aporte, r),
+      patrimonio: textoOpcao('patrimonio', r.patrimonio, r),
     },
     taxaAnual: cfg.taxaAnual,
   };
@@ -301,9 +327,9 @@ function aporteNecessario(inicial, meta, anos, taxaAnual) {
   return falta * i / (f - 1);
 }
 
-function textoOpcao(id, valor) {
+function textoOpcao(id, valor, r) {
   const q = (window.FORMULARIO.perguntas || []).find((p) => p.id === id);
   if (!q || !q.opcoes) return '';
-  const o = q.opcoes.find((op) => String(op.v) === String(valor));
+  const o = opcoesDe(q, r).find((op) => String(op.v) === String(valor));
   return o ? o.t : '';
 }

@@ -2,6 +2,9 @@
 // Versão geral:              link normal (ex.: .../diagnostico/)
 // Versão oficial temporário: mesmo link com ?p=ot (ex.: .../diagnostico/?p=ot)
 
+// Opções de uma pergunta: lista fixa ou montada a partir das respostas anteriores
+window.opcoesDe = (p, r) => (typeof p.opcoes === 'function' ? p.opcoes(r || {}) : p.opcoes || []);
+
 (function () {
   const anoAtual = new Date().getFullYear();
 
@@ -153,9 +156,19 @@
   };
 
   // ---------- Versão oficial temporário (campanha Seja Oficial) ----------
-  const anos = [];
-  for (let a = anoAtual; a <= anoAtual + 8; a++) anos.push({ v: a, t: String(a) });
-  anos.push({ v: 'nao_sei', t: 'Ainda não sei' });
+  // Turmas possíveis: quem se formou há até 8 anos, mais quem está se formando agora
+  const turmas = [];
+  for (let a = anoAtual - 8; a <= anoAtual; a++) turmas.push({ v: a, t: 'Turma ' + a });
+
+  // Anos de baixa: de hoje até o fim dos 8 anos da turma (as opções dependem da resposta anterior)
+  const anosBaixa = (r) => {
+    const fim = Number(r.turma) + window.CONFIG.anosMaximoTemporario;
+    const lista = [];
+    for (let a = anoAtual; a <= fim; a++) {
+      lista.push({ v: a, t: a === fim ? a + ' (fim dos 8 anos)' : String(a) });
+    }
+    return lista.reverse();
+  };
 
   const temporario = {
     publico: 'ot',
@@ -178,11 +191,18 @@
         ],
       },
       {
-        id: 'ano_saida', tipo: 'single', colunas: 3,
-        titulo: 'Em que ano você deve sair do Exército?',
-        ajuda: 'Se não sabe, conte 8 anos a partir da sua formatura.',
-        opcoes: anos,
+        id: 'turma', tipo: 'single', colunas: 3,
+        titulo: 'Qual é a sua turma?',
+        ajuda: 'O ano em que você se formou no CPOR/NPOR. Se está se formando agora, escolha ' + anoAtual + '.',
+        opcoes: turmas,
         mostrarSe: (r) => r.posto !== 'saiu',
+      },
+      {
+        id: 'ano_saida', tipo: 'single',
+        titulo: 'Quando você pretende dar baixa?',
+        ajuda: 'O temporário pode ficar até 8 anos. Escolha o ano em que pretende sair.',
+        opcoes: anosBaixa,
+        mostrarSe: (r) => r.posto !== 'saiu' && r.turma,
       },
       {
         id: 'objetivo', tipo: 'single',

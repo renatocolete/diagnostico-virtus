@@ -1,4 +1,4 @@
-// Controla as telas, uma pergunta por vez, validação, envio e resultado.
+﻿// Controla as telas, uma pergunta por vez, validação, envio e resultado.
 (function () {
   const F = window.FORMULARIO;
   const respostas = {};
@@ -52,7 +52,7 @@
       const tipoInput = p.tipo === 'single' ? 'radio' : 'checkbox';
       const atual = respostas[p.id];
       html += '<div class="opcoes' + (p.colunas ? ' colunas-' + p.colunas : '') + '">';
-      p.opcoes.forEach((o) => {
+      opcoesDe(p, respostas).forEach((o) => {
         const marcado = p.tipo === 'single' ? String(atual) === String(o.v) : (atual || []).map(String).includes(String(o.v));
         html += '<label class="opcao"><input type="' + tipoInput + '" name="' + p.id + '" value="' + o.v + '"' + (marcado ? ' checked' : '') + '><span>' + o.t + '</span></label>';
       });
@@ -111,7 +111,7 @@
     } else if (p.tipo === 'single') {
       const sel = box.querySelector('input:checked');
       if (!sel) return 'Escolha uma opção.';
-      const o = p.opcoes.find((op) => String(op.v) === sel.value);
+      const o = opcoesDe(p, respostas).find((op) => String(op.v) === sel.value);
       respostas[p.id] = o ? o.v : sel.value;
     } else if (p.tipo === 'multi') {
       const sel = [...box.querySelectorAll('input:checked')].map((i) => i.value);
@@ -156,7 +156,22 @@
     $('res-titulo').textContent = (d.primeiroNome ? d.primeiroNome + ', aqui' : 'Aqui') + ' está o seu retrato financeiro';
     $('res-radar').innerHTML = '<div class="radar-topo"><p class="eyebrow">DIAGNÓSTICO 360</p><p class="nota360"><span>' + d.nota360 + '</span>/100</p></div>' + radarSVG(d.areas);
     $('res-fase').innerHTML = '<p class="eyebrow">SUA FASE · ' + d.fase.numero + ' DE 3</p><h3>' + d.fase.nome + '</h3><p>' + d.fase.texto + '</p>';
-    $('res-projecao').innerHTML = '<p class="eyebrow">PROJEÇÃO PARA ' + d.anoFinal + '</p><p class="numero">' + brl(d.proj.final) + '</p><p>Investindo ' + brl(d.aporte) + ' por mês, com ' + pct(d.taxaAnual) + ' ao ano. O detalhe está no PDF.</p>';
+    const linha = (a, b, forte) => '<tr' + (forte ? ' class="forte"' : '') + '><td>' + a + '</td><td>' + b + '</td></tr>';
+    const comPec = d.ot && d.pecuniaria > 0;
+    $('res-projecao').innerHTML =
+      '<p class="eyebrow">' + (comPec ? 'COM QUANTO VOCÊ SAI EM ' : 'PROJEÇÃO PARA ') + d.anoFinal + '</p>' +
+      '<p class="numero">' + brl(comPec ? d.totalSaida : d.proj.final) + '</p>' +
+      '<table class="calc">' +
+      linha('Valor inicial', brl(d.patrimonio)) +
+      linha('Aporte mensal', brl(d.aporte)) +
+      linha('Taxa de juros', pct(d.taxaAnual) + ' ao ano') +
+      linha('Período', d.anos + (d.anos === 1 ? ' ano' : ' anos')) +
+      linha('Total investido', brl(d.proj.investido)) +
+      linha('Total em juros', brl(d.proj.juros)) +
+      linha('Valor dos investimentos', brl(d.proj.final), true) +
+      (comPec ? linha('+ Pecuniária estimada', brl(d.pecuniaria)) + linha('= Total na saída', brl(d.totalSaida), true) : '') +
+      '</table>' +
+      (comPec ? '<p class="nota-calc">Pecuniária: ' + d.anosServico + ' anos de serviço × ' + brl(d.baseSoldo) + ' (' + d.basePecuniaria + '). Estimativa com valores de hoje.</p>' : '');
     const p1 = d.pontos[0];
     $('res-ponto').innerHTML = '<p class="eyebrow">PRINCIPAL PONTO DE ATENÇÃO</p><h3>' + p1.titulo + '</h3><p>' + p1.texto + '</p>';
     $('btn-pdf').onclick = () => pdfAtual.save(nomeArquivo);
@@ -205,7 +220,7 @@
       const v = respostas[p.id];
       if (p.opcoes && v !== undefined) {
         const lista = Array.isArray(v) ? v : [v];
-        respostasTexto[p.id] = lista.map((x) => (p.opcoes.find((o) => String(o.v) === String(x)) || {}).t || x).join(' | ');
+        respostasTexto[p.id] = lista.map((x) => (opcoesDe(p, respostas).find((o) => String(o.v) === String(x)) || {}).t || x).join(' | ');
       } else if (v !== undefined) respostasTexto[p.id] = v;
     });
     const payload = {
@@ -215,6 +230,9 @@
       resumo: {
         fase: d.fase.numero + ' - ' + d.fase.nome,
         nota360: d.nota360,
+        pecuniaria: Math.round(d.pecuniaria || 0),
+        totalSaida: Math.round(d.totalSaida || 0),
+        investimentos: Math.round(d.proj.final),
         areas: d.areas.map((a) => a.nome + ' ' + a.nota).join(' | '),
         renda: d.renda, aporte: d.aporte, patrimonio: d.patrimonio, cartao: d.cartao,
         projecao: Math.round(d.proj.final), anoFinal: d.anoFinal,

@@ -1,4 +1,4 @@
-:root {
+﻿:root {
   --fundo: #000000; --superficie: #0B0D10; --cartao: #13161B; --linha: #2B313A;
   --texto: #ECEEF2; --suave: #9CA2AD; --ciano: #00D2D3; --tinta: #001A1A; --laranja: #FF8A6B;
   --sans: 'DM Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
@@ -54,7 +54,6 @@ h3 { font-size: 18px; font-weight: 700; }
 
 .opcoes { display: flex; flex-direction: column; gap: 10px; }
 .opcoes.colunas-3 { display: grid; grid-template-columns: repeat(3, 1fr); }
-.opcoes.colunas-3 .opcao:last-child { grid-column: 1 / -1; }
 .opcao { display: flex; align-items: center; gap: 12px; background: var(--cartao); border: 1px solid var(--linha); border-radius: 12px; padding: 15px 14px; cursor: pointer; font-size: 16px; line-height: 1.35; }
 .opcao input { accent-color: var(--ciano); width: 20px; height: 20px; flex: none; }
 .opcao:has(input:checked) { border-color: var(--ciano); background: #062B2B; }
@@ -78,6 +77,12 @@ h3 { font-size: 18px; font-weight: 700; }
 .quem-topo h3 { margin: 2px 0; }
 .quem-topo p:last-child { font-size: 13px; }
 .cartao.quem b { color: var(--texto); }
+.calc { width: 100%; border-collapse: collapse; font-size: 14px; margin-top: 4px; }
+.calc td { padding: 6px 0; color: var(--suave); border-bottom: 1px solid var(--linha); }
+.calc td:last-child { text-align: right; color: var(--texto); font-weight: 700; }
+.calc tr.forte td { color: var(--texto); font-weight: 700; }
+.calc tr.forte td:last-child { color: var(--ciano); }
+.nota-calc { font-size: 12px !important; }
 .radar-topo { display: flex; justify-content: space-between; align-items: baseline; }
 .nota360 { color: var(--suave) !important; font-size: 14px; }
 .nota360 span { font-family: var(--serif); font-size: 40px; color: var(--ciano); }
