@@ -16,4 +16,12 @@ window.CONFIG = {
 
   // Anos de projeção para o público geral.
   anosGeral: 10,
+
+  // Compensação pecuniária do oficial temporário (Lei 7.963/1989): uma remuneração por ano de serviço.
+  // A estimativa usa o SOLDO de 2026 (Lei 15.167/2025, com o reajuste de 4,5% de jan/2026).
+  // É conservadora: a lei usa a remuneração do posto, que inclui adicionais e costuma ser maior.
+  // Atualize estes valores quando houver reajuste.
+  soldos: { aspirante: 7988, '2ten': 8179, '1ten': 9004 },
+  anoSoldos: 2026,
+  anosMaximoTemporario: 8,
 };
