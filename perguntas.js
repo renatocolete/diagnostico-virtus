@@ -21,7 +21,8 @@ window.opcoesDe = (p, r) => (typeof p.opcoes === 'function' ? p.opcoes(r || {}) 
     titulo: 'Alguém depende da sua renda hoje?',
     ajuda: 'Cônjuge, filhos, pais. Isso entra na parte de proteção do diagnóstico.',
     opcoes: [
-      { v: 'so_eu', t: 'Não, hoje é só eu' },
+      { v: 'so_eu', t: 'Não, e estou sem seguro de vida' },
+      { v: 'so_eu_seguro', t: 'Não, mas tenho seguro de vida' },
       { v: 'tem_seguro', t: 'Sim, e tenho seguro de vida' },
       { v: 'sem_seguro', t: 'Sim, e não tenho seguro de vida' },
       { v: 'nao_sei', t: 'Tenho seguro, mas não sei se cobre o suficiente' },

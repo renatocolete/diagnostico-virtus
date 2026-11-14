@@ -249,7 +249,7 @@ window.gerarDiagnostico = function (r, publico) {
   if (tem('medo_sair')) futuro -= 2;
   areas.push({ nome: ot ? 'Preparo para a saída' : 'Plano para o futuro', nota: lim(futuro) });
 
-  const notaProtecao = { so_eu: 7, tem_seguro: 9, sem_seguro: 2, nao_sei: 4 }[r.protecao] || 5;
+  const notaProtecao = { so_eu: 6, so_eu_seguro: 8, tem_seguro: 9, sem_seguro: 2, nao_sei: 4 }[r.protecao] || 5;
   areas.splice(5, 0, { nome: 'Proteção da família', nota: notaProtecao });
 
   const nota360 = Math.round((areas.reduce((s, a) => s + a.nota, 0) / areas.length) * 10);
