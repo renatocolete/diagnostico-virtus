@@ -1,6 +1,7 @@
 ﻿// Perguntas das duas versões do diagnóstico.
 // Versão geral:              link normal (ex.: .../diagnostico/)
 // Versão oficial temporário: mesmo link com ?p=ot (ex.: .../diagnostico/?p=ot)
+// Versão servidor público:   mesmo link com ?p=sp (ex.: .../diagnostico/?p=sp)
 
 // Opções de uma pergunta: lista fixa ou montada a partir das respostas anteriores
 window.opcoesDe = (p, r) => (typeof p.opcoes === 'function' ? p.opcoes(r || {}) : p.opcoes || []);
@@ -265,6 +266,127 @@ window.opcoesDe = (p, r) => (typeof p.opcoes === 'function' ? p.opcoes(r || {}) 
     ],
   };
 
+  // ---------- Versão servidor público (campanha de anúncios, ?p=sp) ----------
+  const servidor = {
+    publico: 'sp',
+    inicio: {
+      eyebrow: 'DIAGNÓSTICO PARA SERVIDOR PÚBLICO',
+      titulo: 'Quanto falta para a sua aposentadoria manter o seu padrão?',
+      texto: 'Responda em 4 minutos e receba na hora um PDF com o retrato do seu dinheiro, a conta da sua aposentadoria e quanto de imposto de renda você pode deixar de pagar.',
+    },
+    perguntas: [
+      {
+        id: 'esfera', tipo: 'single',
+        titulo: 'Onde você trabalha?',
+        opcoes: [
+          { v: 'federal', t: 'Servidor federal (Executivo)' },
+          { v: 'federal_outros', t: 'Servidor federal (Judiciário, MPU ou Legislativo)' },
+          { v: 'estadual', t: 'Servidor estadual ou distrital' },
+          { v: 'municipal', t: 'Servidor municipal' },
+          { v: 'militar', t: 'Militar das Forças Armadas' },
+        ],
+      },
+      {
+        id: 'teto', tipo: 'single',
+        titulo: 'A sua aposentadoria pelo regime próprio vai ser limitada ao teto do INSS?',
+        ajuda: 'No serviço público federal, vale para quem entrou a partir de 2013. Nos estados e municípios, depende de quando foi criada a previdência complementar.',
+        opcoes: [
+          { v: 'sim', t: 'Sim, vou me aposentar pelo teto' },
+          { v: 'nao', t: 'Não, entrei antes da regra do teto' },
+          { v: 'nao_sei', t: 'Não sei' },
+        ],
+        mostrarSe: (r) => r.esfera !== 'militar',
+      },
+      {
+        id: 'complementar', tipo: 'single',
+        titulo: 'Você contribui para a previdência complementar do seu órgão?',
+        ajuda: 'Funpresp, no caso federal, ou a fundação do seu estado ou município.',
+        opcoes: [
+          { v: 'sim', t: 'Sim' },
+          { v: 'nao', t: 'Não' },
+          { v: 'nao_sei', t: 'Não sei' },
+        ],
+        mostrarSe: (r) => r.teto === 'sim',
+      },
+      {
+        id: 'anos_aposentar', tipo: 'single',
+        titulo: 'Daqui a quantos anos você pretende se aposentar?',
+        opcoes: [
+          { v: 5, t: 'Uns 5 anos' },
+          { v: 10, t: 'Uns 10 anos' },
+          { v: 15, t: 'Uns 15 anos' },
+          { v: 20, t: 'Uns 20 anos' },
+          { v: 25, t: 'Uns 25 anos' },
+          { v: 30, t: '30 anos ou mais' },
+        ],
+      },
+      {
+        id: 'dores', tipo: 'multi', max: 5,
+        titulo: 'O que mais te incomoda no seu dinheiro hoje?',
+        ajuda: 'Marque até 5 opções.',
+        opcoes: [
+          { v: 'espalhado', t: 'Tenho investimentos espalhados em vários bancos' },
+          { v: 'gerente', t: 'Invisto no que o gerente do banco oferece' },
+          { v: 'taxa', t: 'Não sei quanto pago de taxa nos meus investimentos' },
+          { v: 'parado', t: 'Tenho dinheiro parado na poupança ou na conta' },
+          { v: 'ir', t: 'Pago muito imposto de renda e não sei se dá para reduzir' },
+          { v: 'aposentadoria', t: 'Medo de não manter o padrão quando me aposentar' },
+          { v: 'dividas', t: 'Consignado ou financiamento pesando no mês' },
+          { v: 'nao_sei', t: 'Não sei para onde meu dinheiro está indo' },
+          { v: 'sem_tempo', t: 'Não tenho tempo para cuidar disso' },
+        ],
+      },
+      investe,
+      {
+        id: 'renda', tipo: 'money',
+        titulo: 'Quanto cai na sua conta por mês?',
+        ajuda: 'Valor líquido, depois dos descontos. Pode ser aproximado.',
+        placeholder: 'Ex.: 14.000',
+      },
+      {
+        id: 'bruto', tipo: 'money',
+        titulo: 'E qual é o seu salário bruto?',
+        ajuda: 'O valor antes dos descontos, como aparece no contracheque. É ele que entra na conta da aposentadoria e do imposto de renda.',
+        placeholder: 'Ex.: 19.500',
+      },
+      {
+        id: 'aporte', tipo: 'money',
+        titulo: 'Quanto você consegue investir por mês hoje?',
+        ajuda: 'Se hoje não sobra nada, coloque 0.',
+        placeholder: 'Ex.: 3.000',
+        aceitaZero: true,
+      },
+      {
+        id: 'patrimonio', tipo: 'money',
+        titulo: 'Quanto você já tem guardado ou investido, somando tudo?',
+        ajuda: 'Todos os bancos, poupança, previdência privada. Pode ser aproximado.',
+        placeholder: 'Ex.: 250.000',
+        aceitaZero: true,
+      },
+      {
+        id: 'declaracao', tipo: 'single',
+        titulo: 'Como você faz a declaração do imposto de renda?',
+        opcoes: [
+          { v: 'completa', t: 'Completa' },
+          { v: 'simplificada', t: 'Simplificada' },
+          { v: 'nao_sei', t: 'Não sei, quem faz é o contador ou o programa escolhe' },
+        ],
+      },
+      {
+        id: 'pgbl', tipo: 'single',
+        titulo: 'Você tem PGBL?',
+        ajuda: 'É a previdência privada em que o valor investido sai da base de cálculo do imposto de renda, até 12% da sua renda bruta do ano, na declaração completa.',
+        opcoes: [
+          { v: 'usa_12', t: 'Sim, e coloco perto de 12% da renda bruta por ano' },
+          { v: 'parcial', t: 'Sim, mas não sei se uso o limite todo' },
+          { v: 'nao', t: 'Não tenho' },
+          { v: 'nao_sei', t: 'Não sei o que é' },
+        ],
+      },
+      ...finais,
+    ],
+  };
+
   const p = new URLSearchParams(location.search).get('p');
-  window.FORMULARIO = p === 'ot' ? temporario : geral;
+  window.FORMULARIO = p === 'ot' ? temporario : p === 'sp' ? servidor : geral;
 })();

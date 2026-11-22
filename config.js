@@ -24,4 +24,14 @@ window.CONFIG = {
   soldos: { aspirante: 7988, '2ten': 8179, '1ten': 9004 },
   anoSoldos: 2026,
   anosMaximoTemporario: 8,
+
+  // ---------- Versão servidor público (?p=sp) ----------
+  // Teto do INSS de 2026 (Portaria Interministerial MPS/MF nº 13, de 09/01/2026). Atualize todo janeiro.
+  tetoINSS: 8475.55,
+  // Quanto do teto sobra depois do imposto de renda (uns R$ 7 mil líquidos em 2026).
+  fatorLiquidoTeto: 0.83,
+  // "Regra dos 4%": quanto dá para tirar por ano do patrimônio sem ele acabar tão cedo.
+  taxaRetirada: 0.04,
+  // Limite de dedução do PGBL na declaração completa: 12% da renda bruta tributável.
+  limitePGBL: 0.12,
 };

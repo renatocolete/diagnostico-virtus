@@ -12,6 +12,7 @@ window.gerarDiagnostico = function (r, publico) {
   const cfg = window.CONFIG;
   const anoAtual = new Date().getFullYear();
   const ot = publico === 'ot';
+  const sp = publico === 'sp';
   const dores = r.dores || [];
   const tem = (d) => dores.includes(d);
 
@@ -19,6 +20,10 @@ window.gerarDiagnostico = function (r, publico) {
   const aporte = Number(r.aporte) || 0;
   const patrimonio = Number(r.patrimonio) || 0;
   const cartao = ot ? Number(r.cartao) || 0 : null;
+  const bruto = sp ? Number(r.bruto) || renda : 0;
+
+  // Todas as versões projetam com a mesma taxa (config.js)
+  const taxa = cfg.taxaAnual;
 
   const taxaPoupanca = renda > 0 ? aporte / renda : 0;
   const custoMensal = Math.max(renda - aporte, renda * 0.5);
@@ -33,9 +38,23 @@ window.gerarDiagnostico = function (r, publico) {
     else { anos = Math.max(1, Number(r.ano_saida) - anoAtual); }
     anoFinal = anoAtual + anos;
   }
+  if (sp) {
+    anos = Number(r.anos_aposentar) || 15;
+    anoFinal = anoAtual + anos;
+  }
 
-  const meta = ot ? cfg.metaTemporario : cfg.metaGeral;
-  const proj = projetar(patrimonio, aporte, anos, cfg.taxaAnual);
+  // Servidor que se aposenta pelo teto: quanto falta por mês e quanto precisa estar investido para cobrir (regra dos 4%)
+  // A conta é no líquido: o que cai na conta hoje menos o teto depois do IR
+  const tetoLiquido = cfg.tetoINSS * cfg.fatorLiquidoTeto;
+  const lacunaTeto = sp && r.teto === 'sim' ? Math.max(renda - tetoLiquido, 0) : 0;
+  // (a meta do servidor é arredondada para R$ 10 mil: é uma estimativa, não precisa de centavos)
+  const meta = ot ? cfg.metaTemporario : lacunaTeto > 0 ? Math.round((lacunaTeto * 12) / cfg.taxaRetirada / 10000) * 10000 : cfg.metaGeral;
+  const proj = projetar(patrimonio, aporte, anos, taxa);
+
+  // PGBL: até 12% da renda bruta anual abatida na declaração completa
+  const limitePGBL = bruto * 12 * (cfg.limitePGBL || 0.12);
+  const aliquota = bruto >= 4700 ? 0.275 : bruto >= 3800 ? 0.225 : 0.15;
+  const economiaPGBL = limitePGBL * aliquota;
 
   // Compensação pecuniária estimada: um soldo (valores de hoje) por ano de serviço, até 8 anos
   let pecuniaria = 0, anosServico = 0, baseSoldo = 0, basePecuniaria = '';
@@ -52,10 +71,69 @@ window.gerarDiagnostico = function (r, publico) {
     pecuniaria = baseSoldo * anosServico;
   }
   const totalSaida = proj.final + pecuniaria;
-  const aporteParaMeta = aporteNecessario(patrimonio, Math.max(meta - pecuniaria, 0), anos, cfg.taxaAnual);
+  const aporteParaMeta = aporteNecessario(patrimonio, Math.max(meta - pecuniaria, 0), anos, taxa);
 
   // ---------- Pontos de atenção (em ordem de prioridade; o PDF usa os 4 primeiros) ----------
   const pontos = [];
+
+  // Servidor público: aposentadoria, imposto e carteira vêm antes dos pontos gerais
+  if (sp) {
+    if (r.teto === 'sim' && lacunaTeto > 0) {
+      const compl = r.complementar === 'sim'
+        ? ' A sua previdência complementar cobre uma parte disso. Peça a simulação dela para saber quanto falta de verdade.'
+        : r.complementar === 'nao'
+          ? ' Você ainda não contribui para a previdência complementar do órgão. Se ele paga contrapartida, tem dinheiro ficando na mesa.'
+          : ' Vale descobrir se você contribui para a previdência complementar do órgão e quanto ela vai pagar.';
+      pontos.push({
+        titulo: 'Faltam ' + brl(lacunaTeto) + ' por mês acima do teto',
+        texto: 'Pelo regime próprio, a sua aposentadoria vai até o teto do INSS, hoje ' + brl(cfg.tetoINSS) + ' brutos, uns ' + brl(tetoLiquido) + ' depois do imposto. Para continuar recebendo os ' + brl(renda) + ' que caem na sua conta hoje, faltam uns ' + brl(lacunaTeto) + ' por mês. Pela regra dos 4% ao ano, isso pede perto de ' + brl(meta) + ' investidos até ' + anoFinal + ', em valores de hoje.' + compl,
+      });
+    } else if (r.teto === 'nao_sei') {
+      pontos.push({
+        titulo: 'Você não sabe se a sua aposentadoria tem teto',
+        texto: 'Essa resposta muda toda a conta. No serviço público federal, quem entrou a partir de 2013 se aposenta pelo teto do INSS no regime próprio. Nos estados e municípios a data varia. Confirme no RH ou no portal do servidor antes de decidir quanto investir.',
+      });
+    }
+
+    if (bruto > 0 && r.declaracao === 'completa' && r.pgbl !== 'usa_12') {
+      pontos.push({
+        titulo: 'O PGBL pode adiar até ' + brl(economiaPGBL) + ' de imposto por ano',
+        texto: 'Como você contribui para o regime próprio e faz a declaração completa, o que você investe num PGBL sai da base de cálculo do imposto, até 12% da renda bruta do ano: uns ' + brl(limitePGBL) + ' no seu caso. Na alíquota de ' + (aliquota * 100).toLocaleString('pt-BR') + '%, são até ' + brl(economiaPGBL) + ' a menos de imposto, que aparecem na declaração como restituição maior ou imposto menor a pagar. O imposto volta no resgate, mas na tabela regressiva pode cair para 10% depois de 10 anos.' +
+          (r.complementar === 'sim' ? ' Como você já contribui para a previdência complementar, veja como ela entra nesse limite antes de abrir um plano.' : '') +
+          (new Date().getMonth() >= 9 ? ' Para valer neste ano, o aporte precisa cair até 31 de dezembro.' : ''),
+      });
+    } else if (bruto > 0 && r.declaracao !== 'completa') {
+      pontos.push({
+        titulo: r.declaracao === 'simplificada' ? 'A declaração simplificada pode estar saindo cara' : 'Vale conferir qual declaração é melhor para você',
+        texto: 'Com o seu salário, o desconto da simplificada tem um limite em reais e fica pequeno perto do imposto que você paga. Quem tem dependentes, plano de saúde, escola ou quer usar o PGBL costuma pagar menos na completa. Simule as duas no programa da Receita antes de entregar. Na completa, o PGBL pode tirar até ' + brl(limitePGBL) + ' por ano da sua base de cálculo.',
+      });
+    }
+
+    if (tem('gerente') || tem('taxa')) {
+      pontos.push({
+        titulo: 'Investimentos escolhidos por quem vende',
+        texto: 'Quando o gerente indica um fundo ou uma previdência, a comissão sai do que o produto cobra de você, e você nem vê. Liste cada aplicação com a taxa de administração. Fundo de renda fixa cobrando mais de 1% ao ano precisa entregar muito para valer a pena.',
+      });
+    }
+    if (tem('espalhado')) {
+      pontos.push({
+        titulo: 'Dinheiro espalhado, sem visão do todo',
+        texto: 'Com conta em vários bancos, cada gerente olha só o pedaço dele e ninguém soma quanto você tem no total e quanto paga de taxa no conjunto. Às vezes aparecem duas aplicações fazendo a mesma coisa, cada uma com a sua taxa.',
+      });
+    }
+    if (tem('parado')) {
+      pontos.push({
+        titulo: 'Dinheiro parado rendendo pouco',
+        texto: 'Poupança e saldo em conta costumam render menos que outras opções de renda fixa com a mesma liquidez. A reserva de emergência pode ficar num título com liquidez diária. O que passar dela precisa de um objetivo e de um prazo.',
+      });
+    }
+    if (tem('sem_tempo')) {
+      pontos.push({
+        titulo: 'Sem tempo para cuidar do dinheiro',
+        texto: 'É o motivo mais comum de o dinheiro ficar no automático. Ajuda decidir as regras uma vez (quanto investir, em que dia e onde) e revisar a cada três meses, em vez de recomeçar a decisão todo mês.',
+      });
+    }
+  }
 
   if (ot && renda > 0 && cartao / renda >= 0.3) {
     const dias = Math.round((cartao / renda) * 30);
@@ -95,7 +173,7 @@ window.gerarDiagnostico = function (r, publico) {
 
   if (renda > 0 && taxaPoupanca < 0.15) {
     const alvo = 0.2;
-    const projAlvo = projetar(patrimonio, renda * alvo, anos, cfg.taxaAnual);
+    const projAlvo = projetar(patrimonio, renda * alvo, anos, taxa);
     pontos.push({
       titulo: 'Hoje você investe ' + pct(taxaPoupanca) + ' do que ganha',
       texto: 'Uma meta possível fica entre 20% e 30% da renda. Se você subir para 20% (' + brl(renda * alvo) + ' por mês), a projeção para ' + anoFinal + ' passa de ' + brl(proj.final) + ' para ' + brl(projAlvo.final) + '.',
@@ -114,7 +192,7 @@ window.gerarDiagnostico = function (r, publico) {
     });
   }
 
-  if (tem('espalhado') || r.investe === 'insatisfeito' || (r.investe === 'conta_propria' && tem('nao_cresce'))) {
+  if (!sp && (tem('espalhado') || r.investe === 'insatisfeito' || (r.investe === 'conta_propria' && tem('nao_cresce')))) {
     pontos.push({
       titulo: 'Carteira sem estratégia',
       texto: 'Comprar um ativo por indicação, depois outro, depois outro, termina numa carteira espalhada e sem função. Atendi um 2º tenente com 25 ativos que rendia 54% do CDI em 12 meses. Depois de reorganizar, o primeiro mês fechou acima do CDI.',
@@ -165,7 +243,7 @@ window.gerarDiagnostico = function (r, publico) {
     });
   }
 
-  if (r.objetivo === 'aposentadoria' || r.momento === 'pre_aposentadoria') {
+  if (r.objetivo === 'aposentadoria' || r.momento === 'pre_aposentadoria' || (sp && tem('aposentadoria') && lacunaTeto === 0)) {
     pontos.push({
       titulo: 'Aposentadoria precisa de um número',
       texto: 'Sem saber quanto você quer receber por mês e a partir de que idade, não dá para dizer se o ritmo de hoje é suficiente. Esse número define o aporte, o tipo de carteira e se vale a pena usar previdência privada para pagar menos imposto.',
@@ -247,7 +325,15 @@ window.gerarDiagnostico = function (r, publico) {
 
   let futuro = (totalSaida / meta) * 10;
   if (tem('medo_sair')) futuro -= 2;
-  areas.push({ nome: ot ? 'Preparo para a saída' : 'Plano para o futuro', nota: lim(futuro) });
+  areas.push({ nome: ot ? 'Preparo para a saída' : sp ? 'Aposentadoria' : 'Plano para o futuro', nota: lim(futuro) });
+
+  if (sp) {
+    let ir = r.declaracao === 'completa'
+      ? ({ usa_12: 9, parcial: 6, nao: 4, nao_sei: 3 }[r.pgbl] || 4)
+      : r.declaracao === 'simplificada' ? 5 : 3;
+    if (tem('ir')) ir -= 1;
+    areas.push({ nome: 'Imposto de renda', nota: lim(ir) });
+  }
 
   const notaProtecao = { so_eu: 6, so_eu_seguro: 8, tem_seguro: 9, sem_seguro: 2, nao_sei: 4 }[r.protecao] || 5;
   areas.splice(5, 0, { nome: 'Proteção da família', nota: notaProtecao });
@@ -266,6 +352,8 @@ window.gerarDiagnostico = function (r, publico) {
     'Investimentos': 'Liste onde está cada real que você tem investido e para que serve cada aplicação. O que não tiver um objetivo claro é candidato a sair.',
     'Proteção da família': 'Confira se você tem seguro de vida, quanto ele paga e quem são os beneficiários. Se não tem, faça a conta de quanto a sua família precisaria por mês sem a sua renda.',
     'Preparo para a saída': 'Anote o ano previsto da sua saída e as datas das próximas promoções. Defina agora quanto de cada aumento vai para investimento antes de ele cair na conta.',
+    'Aposentadoria': 'Confirme no RH ou no portal do servidor qual regra de aposentadoria vale para você, se ela tem teto e quanto a previdência complementar deve pagar. Com isso dá para calcular quanto falta por mês.',
+    'Imposto de renda': 'Pegue a última declaração e simule as duas opções, completa e simplificada, no programa da Receita. Se a completa ganhar, veja quanto falta para usar os 12% de PGBL até 31 de dezembro.',
     'Plano para o futuro': 'Escreva os seus 2 objetivos principais com valor e prazo, por exemplo "R$ 80 mil de entrada do apartamento em 4 anos". Sem número, não dá para saber se o ritmo está certo.',
   };
   const plano30 = ordenadas.slice(0, 4).map((a) => ({ area: a.nome, texto: acoes[a.nome] }));
@@ -273,7 +361,7 @@ window.gerarDiagnostico = function (r, publico) {
   // ---------- Mensagens prontas para o WhatsApp ----------
   const primeiro = ((r.nome || '').trim().split(/\s+/)[0] || '');
   const linkWhats = (texto) => 'https://wa.me/' + cfg.whatsapp + '?text=' + encodeURIComponent(texto);
-  const apresent = 'Oi Renato, ' + (primeiro ? 'sou ' + primeiro + '. ' : '') + 'Fiz o diagnóstico financeiro' + (ot ? ' pelo Seja Oficial' : '');
+  const apresent = 'Oi Renato, ' + (primeiro ? 'sou ' + primeiro + '. ' : '') + 'Fiz o diagnóstico financeiro' + (ot ? ' pelo Seja Oficial' : sp ? ' para servidor público' : '');
   const whatsPrincipal = linkWhats(apresent + ' e tirei ' + nota360 + '/100. O que mais pesou foi ' + maisFraca.nome.toLowerCase() + '. Quero marcar a conversa para entender o que fazer primeiro.');
   const whatsFase = linkWhats(apresent + '. Estou na fase "' + fase.nome + '" e quero ajuda para passar para a próxima.');
   const whatsMeta = linkWhats(apresent + (totalSaida >= meta
@@ -289,7 +377,8 @@ window.gerarDiagnostico = function (r, publico) {
   return {
     areas, nota360, maisFraca, maisForte, plano30, whatsPrincipal, whatsFase, whatsMeta,
     interesse: r.conversa, horario: r.horario,
-    publico, ot, anoAtual, anoFinal, anos,
+    publico, ot, sp, anoAtual, anoFinal, anos,
+    bruto, lacunaTeto, teto: r.teto, limitePGBL, economiaPGBL, aliquota, tetoINSS: cfg.tetoINSS,
     nome: (r.nome || '').trim(),
     primeiroNome: ((r.nome || '').trim().split(/\s+/)[0] || ''),
     renda, aporte, patrimonio, cartao, taxaPoupanca, custoMensal, reservaIdeal,
@@ -302,7 +391,7 @@ window.gerarDiagnostico = function (r, publico) {
       aporte: textoOpcao('aporte', r.aporte, r),
       patrimonio: textoOpcao('patrimonio', r.patrimonio, r),
     },
-    taxaAnual: cfg.taxaAnual,
+    taxaAnual: taxa,
   };
 };
 

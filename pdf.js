@@ -57,7 +57,7 @@ window.gerarPDF = function (d) {
   // ================= Página 1: Diagnóstico 360 =================
   novaPagina();
   let y = 120;
-  eyebrow(d.ot ? 'Diagnóstico para oficial temporário' : 'Diagnóstico financeiro', y);
+  eyebrow(d.ot ? 'Diagnóstico para oficial temporário' : d.sp ? 'Diagnóstico para servidor público' : 'Diagnóstico financeiro', y);
   y = titulo('Olá, ' + (d.primeiroNome || 'tudo bem') + '.', y + 36, 34);
   y = paragrafo('Este é o retrato da sua vida financeira a partir do que você respondeu. Cada área recebeu uma nota de 1 a 10. Quanto mais aberto o desenho, mais equilibrada está a sua vida financeira.', M, y + 4, W - 2 * M, { tam: 11.5 });
 
@@ -152,13 +152,19 @@ window.gerarPDF = function (d) {
   // Números
   eyebrow('Números principais', y);
   y += 16;
-  const faixa = (id, valor) => (d.ot ? brl(valor) : (d.faixas[id] || brl(valor)));
+  const exato = d.ot || d.sp; // nessas versões os valores são digitados, não escolhidos por faixa
+  const faixa = (id, valor) => (exato ? brl(valor) : (d.faixas[id] || brl(valor)));
   const stats = [
-    { r: d.ot ? 'Cai na conta por mês' : 'Renda mensal', v: faixa('renda', d.renda) },
+    { r: exato ? 'Cai na conta por mês' : 'Renda mensal', v: faixa('renda', d.renda) },
     { r: 'Investe por mês', v: faixa('aporte', d.aporte) },
     { r: 'Já tem guardado', v: faixa('patrimonio', d.patrimonio) },
-    { r: d.ot ? 'Parte da renda investida' : 'Parte da renda investida (aprox.)', v: pct(d.taxaPoupanca) },
+    { r: exato ? 'Parte da renda investida' : 'Parte da renda investida (aprox.)', v: pct(d.taxaPoupanca) },
   ];
+  if (d.sp) {
+    stats.push({ r: 'Salário bruto', v: brl(d.bruto) });
+    if (d.lacunaTeto > 0) stats.push({ r: 'Falta por mês acima do teto', v: brl(d.lacunaTeto), alerta: true });
+    else stats.push({ r: 'PGBL: limite de dedução no ano', v: brl(d.limitePGBL) });
+  }
   if (d.ot) {
     stats.push({ r: 'Fatura média do cartão', v: brl(d.cartao), alerta: d.renda > 0 && d.cartao / d.renda >= 0.3 });
     stats.push({ r: 'Reserva ideal (6 meses)', v: brl(d.reservaIdeal) });
@@ -208,7 +214,7 @@ window.gerarPDF = function (d) {
   // ================= Página 3: projeção e próximo passo =================
   novaPagina();
   y = 130;
-  eyebrow(d.ot ? 'Até a sua saída do Exército' : 'Os próximos ' + d.anos + ' anos', y);
+  eyebrow(d.ot ? 'Até a sua saída do Exército' : d.sp ? 'Até a sua aposentadoria' : 'Os próximos ' + d.anos + ' anos', y);
   y = titulo(d.ot && d.pecuniaria > 0 ? 'Com quanto você sai do Exército em ' + d.anoFinal : 'Quanto você pode ter em ' + d.anoFinal, y + 36, 26);
   const totalFinal = d.ot ? d.totalSaida : d.proj.final;
   doc.setFont('times', 'normal'); doc.setFontSize(46); doc.setTextColor(C.ciano);
@@ -216,7 +222,7 @@ window.gerarPDF = function (d) {
   y += 52;
 
   // Calculadora de juros compostos: os dados de entrada à esquerda, o resultado à direita
-  const aprox = d.ot ? '' : 'cerca de ';
+  const aprox = exato ? '' : 'cerca de ';
   const meses = d.anos * 12;
   const entradas = [
     ['Valor inicial', aprox + brl(d.patrimonio)],
@@ -277,9 +283,15 @@ window.gerarPDF = function (d) {
 
   // Meta
   const passa = d.aporteParaMeta <= 0 || totalFinal >= d.meta;
-  const textoMeta = passa
+  let textoMeta = passa
     ? 'Nesse ritmo você passa de ' + brl(d.meta) + ' até ' + d.anoFinal + '. O trabalho agora é manter o plano e proteger esse caminho.'
     : 'Para sair com ' + brl(d.meta) + ' em ' + d.anoFinal + (d.pecuniaria > 0 ? ', contando a pecuniária,' : '') + ' o aporte precisa ser de ' + brl(d.aporteParaMeta) + ' por mês. Promoções, férias e 13º ajudam a fechar essa conta.';
+  if (d.sp) {
+    const motivo = d.lacunaTeto > 0 ? 'Para completar os ' + brl(d.lacunaTeto) + ' por mês acima do teto, você precisa chegar a ' : 'A meta é chegar a ';
+    textoMeta = passa
+      ? motivo + brl(d.meta) + ' em ' + d.anoFinal + '. Nesse ritmo você chega lá. O trabalho agora é manter o plano e proteger esse caminho.'
+      : motivo + brl(d.meta) + ' em ' + d.anoFinal + '. Para isso, o aporte precisa ser de ' + brl(d.aporteParaMeta) + ' por mês. O 13º e as progressões da carreira ajudam a fechar essa conta.';
+  }
   const hMeta = 30 + altura(textoMeta, W - 2 * M - 40, 11.5);
   caixa(M, y, W - 2 * M, hMeta, C.cartao, C.laranja);
   paragrafo(textoMeta, M + 20, y + 24, W - 2 * M - 40, { tam: 11.5, cor: C.texto });
@@ -291,7 +303,9 @@ window.gerarPDF = function (d) {
   if (d.ot && d.pecuniaria > 0) {
     y = paragrafo('Pecuniária estimada: ' + d.anosServico + ' anos de serviço (turma ' + d.turma + ' até ' + d.anoFinal + ') multiplicados por ' + d.basePecuniaria + ', ' + brl(d.baseSoldo) + '. A lei paga uma remuneração por ano de serviço, que inclui adicionais e costuma ser maior que o soldo; o valor também muda com reajustes. Use como estimativa conservadora.', M, y + 2, W - 2 * M, { tam: 8 });
   }
-  paragrafo('Simulação com rentabilidade de ' + pct(d.taxaAnual) + ' ao ano, sem descontar inflação nem imposto. Não é promessa de rentabilidade. Rentabilidade passada não garante resultado futuro.', M, y + 4, W - 2 * M, { tam: 8 });
+  paragrafo(d.sp
+    ? 'Simulação com rentabilidade de ' + pct(d.taxaAnual) + ' ao ano, sem descontar inflação nem imposto. Teto do INSS de ' + brl(d.tetoINSS) + ' (2026). A meta da aposentadoria usa a regra dos 4% ao ano, em valores de hoje, e não considera a previdência complementar. Não é promessa de rentabilidade nem recomendação de investimento.'
+    : 'Simulação com rentabilidade de ' + pct(d.taxaAnual) + ' ao ano, sem descontar inflação nem imposto. Não é promessa de rentabilidade. Rentabilidade passada não garante resultado futuro.', M, y + 4, W - 2 * M, { tam: 8 });
 
   // ================= Página 5: plano dos próximos 30 dias =================
   novaPagina();
@@ -315,7 +329,7 @@ window.gerarPDF = function (d) {
   });
 
   y += 8;
-  const textoPasso = 'Marque agora a sua conversa de 45 minutos comigo, sem custo. A gente transforma esse plano em números da sua realidade: quanto guardar, onde investir e o que fazer com ' + (d.ot ? 'cada promoção e 13º' : 'o 13º e cada dinheiro extra') + ' até ' + d.anoFinal + '. E eu te mostro como funciona o acompanhamento.';
+  const textoPasso = 'Marque agora a sua conversa de 45 minutos comigo, sem custo. A gente transforma esse plano em números da sua realidade: quanto guardar, onde investir e o que fazer com ' + (d.ot ? 'cada promoção e 13º' : d.sp ? 'o 13º e cada progressão' : 'o 13º e cada dinheiro extra') + ' até ' + d.anoFinal + '. E eu te mostro como funciona o acompanhamento.';
   const hPasso = 92 + altura(textoPasso, W - 2 * M - 40, 11);
   if (y + hPasso > H - 70) { novaPagina(); y = 130; } // nunca deixa o próximo passo de fora
   {

@@ -235,6 +235,7 @@
         investimentos: Math.round(d.proj.final),
         areas: d.areas.map((a) => a.nome + ' ' + a.nota).join(' | '),
         renda: d.renda, aporte: d.aporte, patrimonio: d.patrimonio, cartao: d.cartao,
+        bruto: d.bruto || '', lacunaTeto: Math.round(d.lacunaTeto || 0), limitePGBL: Math.round(d.limitePGBL || 0),
         projecao: Math.round(d.proj.final), anoFinal: d.anoFinal,
         pontos: d.pontos.map((p) => p.titulo).join(' | '),
       },
