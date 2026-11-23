@@ -34,4 +34,7 @@ window.CONFIG = {
   taxaRetirada: 0.04,
   // Limite de dedução do PGBL na declaração completa: 12% da renda bruta tributável.
   limitePGBL: 0.12,
+  // Filtro da campanha (combinado com a TRÍADE): abaixo deste salário BRUTO a pessoa recebe o PDF,
+  // mas não recebe o convite para a conversa e chega marcada como "fora do perfil" na planilha.
+  rendaMinimaServidor: 12000,
 };

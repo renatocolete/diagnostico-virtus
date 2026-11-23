@@ -55,6 +55,32 @@ window.opcoesDe = (p, r) => (typeof p.opcoes === 'function' ? p.opcoes(r || {}) 
 
   const finais = [protecao, conversa, horario, contato];
 
+  // Versão servidor: mesma pergunta da conversa, no formato do filtro da TRÍADE
+  // (quem só está pesquisando ou não quer conversar nas próximas 24h fica fora do perfil)
+  const conversaSp = {
+    id: 'conversa', tipo: 'single',
+    titulo: 'Quer que eu analise esse resultado com você?',
+    ajuda: 'É uma conversa de 45 minutos, sem custo. Eu te chamo no WhatsApp pra marcar o horário.',
+    opcoes: [
+      { v: 'esta_semana', t: 'Sim, pode me chamar nas próximas 24 horas' },
+      { v: 'mais_pra_frente', t: 'Sim, mas só mais pra frente' },
+      { v: 'so_pdf', t: 'Não, por enquanto só estou pesquisando' },
+    ],
+  };
+  const conjuge = {
+    id: 'conjuge', tipo: 'single',
+    titulo: 'Quem decide sobre os investimentos na sua casa?',
+    ajuda: 'Se a decisão é a dois, o ideal é o seu cônjuge participar da conversa.',
+    opcoes: [
+      { v: 'sozinho', t: 'Eu decido sozinho(a)' },
+      { v: 'juntos', t: 'Eu e meu cônjuge, juntos' },
+      { v: 'conjuge', t: 'Meu cônjuge decide mais do que eu' },
+    ],
+    mostrarSe: (r) => r.conversa === 'esta_semana',
+  };
+  const horarioSp = Object.assign({}, horario, { mostrarSe: (r) => r.conversa === 'esta_semana' });
+  const finaisSp = [protecao, conversaSp, conjuge, horarioSp, contato];
+
   const investe = {
     id: 'investe', tipo: 'single',
     titulo: 'Você já investe hoje?',
@@ -383,7 +409,7 @@ window.opcoesDe = (p, r) => (typeof p.opcoes === 'function' ? p.opcoes(r || {}) 
           { v: 'nao_sei', t: 'Não sei o que é' },
         ],
       },
-      ...finais,
+      ...finaisSp,
     ],
   };
 

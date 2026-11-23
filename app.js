@@ -147,10 +147,30 @@
       const d = window.gerarDiagnostico(respostas, F.publico);
       pdfAtual = window.gerarPDF(d);
       const nomeArquivo = 'Diagnostico-Virtus-' + (d.primeiroNome || 'financeiro').normalize('NFD').replace(/[^\w]/g, '') + '.pdf';
+      // Envia ANTES de mostrar o resultado e baixar o PDF: no navegador do Instagram, o download
+      // ou o clique no WhatsApp tiravam a pessoa da página e cortavam o envio no meio.
+      try { envio = enviar(d, nomeArquivo); } catch (e) { console.warn('Falha ao montar o envio', e); }
       mostrarResultado(d, nomeArquivo);
-      enviar(d, nomeArquivo);
     }, 900);
   }
+
+  let envio = Promise.resolve();
+  let enviando = false;
+  // Espera o envio terminar (no máximo uns segundos) antes de sair da página
+  function esperarEnvio(max) {
+    return Promise.race([envio, new Promise((ok) => setTimeout(ok, max))]);
+  }
+  function segurarSaida(botao) {
+    botao.addEventListener('click', (e) => {
+      if (!enviando) return;
+      e.preventDefault();
+      const destino = botao.href, texto = botao.textContent;
+      botao.textContent = 'Salvando seu diagnóstico...';
+      esperarEnvio(12000).then(() => { botao.textContent = texto; location.href = destino; });
+    });
+  }
+  segurarSaida($('btn-whats'));
+  segurarSaida($('btn-whats-topo'));
 
   function mostrarResultado(d, nomeArquivo) {
     $('res-titulo').textContent = (d.primeiroNome ? d.primeiroNome + ', aqui' : 'Aqui') + ' está o seu retrato financeiro';
@@ -183,8 +203,23 @@
       '<p>Oficial temporário do Exército desde 2019, atendo militares desde 2022. Hoje acompanho mais de 30 famílias, e 5 dos 6 consultores da Virtus são militares ou ex-militares.</p>' +
       '<p><b>Sem comissão de produto, sem multa e sem tempo mínimo.</b> Se usar o primeiro mês e não gostar, o valor volta inteiro.</p>';
     $('res-email').textContent = 'Uma cópia do PDF também vai para ' + respostas.email + '. Se não aparecer, olhe a caixa de spam.';
+
+    // Servidor fora do perfil (filtro da campanha): recebe tudo, menos o convite para a conversa
+    if (d.sp && !d.qualificado) {
+      $('btn-whats-topo').style.display = 'none';
+      if (d.motivoFora === 'renda') {
+        $('btn-whats').href = d.instagram;
+        $('btn-whats').textContent = 'Seguir @renatocolete no Instagram';
+        $('res-quem').innerHTML += '<p>Comece pelo plano de 30 dias que está no PDF. No Instagram eu posto toda semana conta de aposentadoria, PGBL e taxa de investimento pra servidor.</p>';
+      } else {
+        $('btn-whats').textContent = 'Quando quiser, me chama no WhatsApp';
+      }
+    }
     mostrar('tela-resultado');
-    try { pdfAtual.save(nomeArquivo); } catch (e) { /* o botão continua disponível */ }
+    // O download automático espera o envio: em alguns celulares ele abre o PDF por cima da página
+    esperarEnvio(12000).then(() => {
+      try { pdfAtual.save(nomeArquivo); } catch (e) { /* o botão continua disponível */ }
+    });
   }
 
   // Gráfico radar do Diagnóstico 360 em SVG (mesmas notas do PDF)
@@ -214,7 +249,7 @@
 
   function enviar(d, nomeArquivo) {
     const url = window.CONFIG.scriptUrl;
-    if (!url) { console.warn('CONFIG.scriptUrl vazio: respostas não foram salvas.'); return; }
+    if (!url) { console.warn('CONFIG.scriptUrl vazio: respostas não foram salvas.'); return Promise.resolve(); }
     const respostasTexto = {};
     F.perguntas.forEach((p) => {
       const v = respostas[p.id];
@@ -236,6 +271,7 @@
         areas: d.areas.map((a) => a.nome + ' ' + a.nota).join(' | '),
         renda: d.renda, aporte: d.aporte, patrimonio: d.patrimonio, cartao: d.cartao,
         bruto: d.bruto || '', lacunaTeto: Math.round(d.lacunaTeto || 0), limitePGBL: Math.round(d.limitePGBL || 0),
+        qualificado: d.sp ? (d.qualificado ? 'Sim' : 'Não') : '', motivoFora: d.motivoForaTexto || '',
         projecao: Math.round(d.proj.final), anoFinal: d.anoFinal,
         pontos: d.pontos.map((p) => p.titulo).join(' | '),
       },
@@ -243,7 +279,13 @@
       arquivo: nomeArquivo,
       origem: location.href,
     };
-    fetch(url, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify(payload) })
-      .catch((e) => console.warn('Falha ao enviar respostas', e));
+    const corpo = JSON.stringify(payload);
+    const tentar = () => fetch(url, { method: 'POST', mode: 'no-cors', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: corpo });
+    enviando = true;
+    // Se a internet do celular falhar, tenta de novo uma vez
+    return tentar()
+      .catch(() => new Promise((ok) => setTimeout(ok, 1500)).then(tentar))
+      .catch((e) => console.warn('Falha ao enviar respostas', e))
+      .finally(() => { enviando = false; });
   }
 })();

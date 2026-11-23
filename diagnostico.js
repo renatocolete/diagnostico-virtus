@@ -56,6 +56,21 @@ window.gerarDiagnostico = function (r, publico) {
   const aliquota = bruto >= 4700 ? 0.275 : bruto >= 3800 ? 0.225 : 0.15;
   const economiaPGBL = limitePGBL * aliquota;
 
+  // Filtro da campanha de servidor (mesmos cortes do formulário da TRÍADE).
+  // Quem fica fora recebe o PDF igual, só sem o convite para a conversa.
+  let motivoFora = '';
+  if (sp) {
+    if (bruto < (cfg.rendaMinimaServidor || 12000)) motivoFora = 'renda';
+    else if (r.conversa === 'so_pdf') motivoFora = 'pesquisando';
+    else if (r.conversa === 'mais_pra_frente') motivoFora = 'sem_24h';
+  }
+  const qualificado = !motivoFora;
+  const motivoForaTexto = {
+    renda: 'Salário bruto abaixo de ' + brl(cfg.rendaMinimaServidor || 12000),
+    pesquisando: 'Só pesquisando',
+    sem_24h: 'Não quer conversar nas próximas 24h',
+  }[motivoFora] || '';
+
   // Compensação pecuniária estimada: um soldo (valores de hoje) por ano de serviço, até 8 anos
   let pecuniaria = 0, anosServico = 0, baseSoldo = 0, basePecuniaria = '';
   if (ot && r.posto !== 'saiu' && r.turma) {
@@ -377,6 +392,8 @@ window.gerarDiagnostico = function (r, publico) {
   return {
     areas, nota360, maisFraca, maisForte, plano30, whatsPrincipal, whatsFase, whatsMeta,
     interesse: r.conversa, horario: r.horario,
+    qualificado, motivoFora, motivoForaTexto, conjuge: r.conjuge,
+    instagram: 'https://instagram.com/renatocolete',
     publico, ot, sp, anoAtual, anoFinal, anos,
     bruto, lacunaTeto, teto: r.teto, limitePGBL, economiaPGBL, aliquota, tetoINSS: cfg.tetoINSS,
     nome: (r.nome || '').trim(),

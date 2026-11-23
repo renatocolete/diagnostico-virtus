@@ -329,7 +329,14 @@ window.gerarPDF = function (d) {
   });
 
   y += 8;
-  const textoPasso = 'Marque agora a sua conversa de 45 minutos comigo, sem custo. A gente transforma esse plano em números da sua realidade: quanto guardar, onde investir e o que fazer com ' + (d.ot ? 'cada promoção e 13º' : d.sp ? 'o 13º e cada progressão' : 'o 13º e cada dinheiro extra') + ' até ' + d.anoFinal + '. E eu te mostro como funciona o acompanhamento.';
+  // Servidor fora do perfil (filtro da campanha): sem convite para a conversa gratuita
+  const foraRenda = d.sp && d.motivoFora === 'renda';
+  const foraOutro = d.sp && !d.qualificado && !foraRenda;
+  const textoPasso = foraRenda
+    ? 'Comece pelas ações do plano acima, uma por semana. A primeira já mostra o resultado no fim do mês. No meu Instagram eu posto toda semana conta de aposentadoria, PGBL e taxa de investimento pra servidor.'
+    : foraOutro
+    ? 'Quando quiser transformar esse plano em números da sua realidade (quanto guardar, onde investir e o que fazer com o 13º e cada progressão até ' + d.anoFinal + '), me chama no WhatsApp. Até lá, as ações acima já dão pra começar sozinho.'
+    : 'Marque agora a sua conversa de 45 minutos comigo, sem custo. A gente transforma esse plano em números da sua realidade: quanto guardar, onde investir e o que fazer com ' + (d.ot ? 'cada promoção e 13º' : d.sp ? 'o 13º e cada progressão' : 'o 13º e cada dinheiro extra') + ' até ' + d.anoFinal + '. E eu te mostro como funciona o acompanhamento.';
   const hPasso = 92 + altura(textoPasso, W - 2 * M - 40, 11);
   if (y + hPasso > H - 70) { novaPagina(); y = 130; } // nunca deixa o próximo passo de fora
   {
@@ -337,7 +344,8 @@ window.gerarPDF = function (d) {
     doc.setFont('helvetica', 'bold'); doc.setFontSize(9); doc.setTextColor(C.tinta);
     doc.text('PRÓXIMO PASSO', M + 20, y + 26, { charSpace: 1.5 });
     const yp = paragrafo(textoPasso, M + 20, y + 46, W - 2 * M - 40, { tam: 11, cor: C.tinta });
-    botao(M + 20, yp + 2, 260, 30, 'Marcar minha conversa no WhatsApp', d.whatsPrincipal, C.fundo, C.texto);
+    if (foraRenda) botao(M + 20, yp + 2, 260, 30, 'Seguir @renatocolete no Instagram', d.instagram, C.fundo, C.texto);
+    else botao(M + 20, yp + 2, 260, 30, foraOutro ? 'Falar com o Renato no WhatsApp' : 'Marcar minha conversa no WhatsApp', d.whatsPrincipal, C.fundo, C.texto);
   }
 
   // ================= Página 6: quem vai te acompanhar =================
