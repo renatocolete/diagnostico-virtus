@@ -292,11 +292,28 @@ window.gerarPDF = function (d) {
       ? motivo + brl(d.meta) + ' em ' + d.anoFinal + '. Nesse ritmo você chega lá. O trabalho agora é manter o plano e proteger esse caminho.'
       : motivo + brl(d.meta) + ' em ' + d.anoFinal + '. Para isso, o aporte precisa ser de ' + brl(d.aporteParaMeta) + ' por mês. O 13º e as progressões da carreira ajudam a fechar essa conta.';
   }
+  // Meta fora da realidade (prazo curto, renda de aluno, valor digitado errado): em vez de
+  // "precisa investir R$ 30 mil por mês", mostra um passo que cabe na renda de hoje
+  if (!passa && !d.metaRealista) {
+    const extra = d.ot ? 'Promoções, férias e 13º ajudam a ir além.' : d.sp ? 'O 13º e as progressões da carreira ajudam a ir além.' : 'Aumento de renda e 13º ajudam a ir além.';
+    const inicio = (d.sp && d.lacunaTeto > 0 ? 'Para completar os ' + brl(d.lacunaTeto) + ' por mês acima do teto, a conta pede ' : 'A meta de referência é ') +
+      brl(d.meta) + ' em ' + d.anoFinal + '. Com ' + d.anos + (d.anos === 1 ? ' ano' : ' anos') + ' pela frente, isso pediria um aporte maior do que cabe hoje na sua renda. ';
+    if (d.renda < 1000) {
+      // renda digitada errada ou quase zero: não dá para sugerir valor
+      textoMeta = inicio + 'Comece pelo plano de 30 dias deste PDF. Na conversa a gente olha os seus números com calma e define quanto dá pra investir por mês.';
+    } else if (d.aporteSugerido > d.aporte) {
+      textoMeta = inicio + 'Um passo possível: subir o aporte para ' + brl(d.aporteSugerido) + ' por mês, uns 30% do que cai na conta. Assim você chega em ' + d.anoFinal + ' com ' + brl(d.totalSugerido) +
+        (d.ot && d.pecuniaria > 0 ? ', contando a pecuniária' : '') + (totalFinal > 0 ? ', contra ' + brl(totalFinal) + ' no ritmo de hoje. ' : '. ') + extra;
+    } else {
+      textoMeta = inicio + 'Você já investe uma boa parte do que ganha, então o próximo salto vem de aumentar a renda e mandar cada aumento direto pro investimento. ' + extra;
+    }
+  }
   const hMeta = 30 + altura(textoMeta, W - 2 * M - 40, 11.5);
   caixa(M, y, W - 2 * M, hMeta, C.cartao, C.laranja);
   paragrafo(textoMeta, M + 20, y + 24, W - 2 * M - 40, { tam: 11.5, cor: C.texto });
   y += hMeta + 14;
-  const textoBotaoMeta = passa ? 'Montar comigo o plano para manter esse ritmo' : 'Montar comigo o caminho até ' + brl(d.meta);
+  const textoBotaoMeta = passa ? 'Montar comigo o plano para manter esse ritmo'
+    : d.metaRealista ? 'Montar comigo o caminho até ' + brl(d.meta) : 'Montar comigo o plano até ' + d.anoFinal;
   botao(M, y, W - 2 * M, 38, textoBotaoMeta, d.whatsMeta, C.cartao, C.ciano);
   y += 52;
 

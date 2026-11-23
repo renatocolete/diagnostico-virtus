@@ -88,6 +88,14 @@ window.gerarDiagnostico = function (r, publico) {
   const totalSaida = proj.final + pecuniaria;
   const aporteParaMeta = aporteNecessario(patrimonio, Math.max(meta - pecuniaria, 0), anos, taxa);
 
+  // Quando o aporte que a meta pede foge da realidade (prazo curto, renda de aluno, valor digitado errado),
+  // o PDF não mostra "precisa investir R$ 30 mil por mês". Mostra um passo possível: 30% da renda.
+  const tetoRealista = Math.max(renda * 0.4, aporte * 1.5, 0);
+  const metaRealista = aporteParaMeta <= 0 || aporteParaMeta <= tetoRealista;
+  const aporteSugerido = Math.max(aporte, Math.round((renda * 0.3) / 50) * 50);
+  const projSugerida = projetar(patrimonio, aporteSugerido, anos, taxa);
+  const totalSugerido = projSugerida.final + pecuniaria;
+
   // ---------- Pontos de atenção (em ordem de prioridade; o PDF usa os 4 primeiros) ----------
   const pontos = [];
 
@@ -381,7 +389,9 @@ window.gerarDiagnostico = function (r, publico) {
   const whatsFase = linkWhats(apresent + '. Estou na fase "' + fase.nome + '" e quero ajuda para passar para a próxima.');
   const whatsMeta = linkWhats(apresent + (totalSaida >= meta
     ? '. Minha projeção passa de ' + brl(meta) + ' até ' + anoFinal + ' e quero um plano para manter esse ritmo.'
-    : '. Quero montar o caminho para chegar a ' + brl(meta) + ' até ' + anoFinal + '.'));
+    : metaRealista
+      ? '. Quero montar o caminho para chegar a ' + brl(meta) + ' até ' + anoFinal + '.'
+      : '. Quero montar um plano para chegar em ' + anoFinal + ' com mais do que a minha projeção de hoje.'));
   plano30.forEach((a) => {
     a.whats = linkWhats(apresent + '. Quero ajuda para começar pela ação de ' + a.area.toLowerCase() + ' do meu plano de 30 dias.');
   });
@@ -399,7 +409,7 @@ window.gerarDiagnostico = function (r, publico) {
     nome: (r.nome || '').trim(),
     primeiroNome: ((r.nome || '').trim().split(/\s+/)[0] || ''),
     renda, aporte, patrimonio, cartao, taxaPoupanca, custoMensal, reservaIdeal,
-    meta, aporteParaMeta, proj, fase,
+    meta, aporteParaMeta, metaRealista, aporteSugerido, totalSugerido, proj, fase,
     pecuniaria, anosServico, baseSoldo, basePecuniaria, totalSaida, turma: r.turma,
     pontos: pontos.slice(0, 4),
     objetivoTexto: textoOpcao('objetivo', r.objetivo, r),
