@@ -376,7 +376,20 @@ window.gerarPDF = function (d) {
   y = titulo('Seu plano para os próximos 30 dias', y + 36, 26);
   y = paragrafo('Uma ação por semana, começando pela área com a nota mais baixa.', M, y + 2, W - 2 * M, { tam: 11 });
   y += 10;
-  d.plano30.forEach((a, i) => {
+  // Servidor fora do perfil (filtro da campanha): sem convite para a conversa gratuita
+  const foraRenda = d.sp && d.motivoFora === 'renda';
+  const foraOutro = d.sp && !d.qualificado && !foraRenda;
+  const textoPasso = foraRenda
+    ? 'Comece pelas ações do plano acima, uma por semana. A primeira já mostra o resultado no fim do mês. No meu Instagram eu posto toda semana conta de aposentadoria, PGBL e taxa de investimento pra servidor.'
+    : foraOutro
+    ? 'Quando quiser transformar esse plano em números da sua realidade (quanto guardar, onde investir e o que fazer com o 13º e cada progressão até ' + d.anoFinal + '), me chama no WhatsApp. Até lá, as ações acima já dão pra começar sozinho.'
+    : 'Marque agora a sua conversa de 45 minutos comigo, sem custo. A gente transforma esse plano em números da sua realidade: quanto guardar, onde investir e o que fazer com ' + (d.ot ? 'cada promoção e 13º' : d.sp ? 'o 13º e cada progressão' : 'o 13º e cada dinheiro extra') + ' até ' + d.anoFinal + '. E eu te mostro como funciona o acompanhamento.';
+  const hPasso = 92 + altura(textoPasso, W - 2 * M - 40, 11);
+  // O próximo passo fica na mesma página do plano: se não couber, o plano mostra uma ação a menos
+  let plano = d.plano30.slice();
+  const altPlano = (lista) => lista.reduce((s, a) => s + 56 + altura(a.texto, W - 2 * M - 70, 10.5) + 8, 0);
+  while (plano.length > 2 && y + altPlano(plano) + 8 + hPasso > H - 70) plano.pop();
+  plano.forEach((a, i) => {
     const larg = W - 2 * M - 70;
     const h = 56 + altura(a.texto, larg, 10.5);
     caixa(M, y, W - 2 * M, h);
@@ -391,15 +404,6 @@ window.gerarPDF = function (d) {
   });
 
   y += 8;
-  // Servidor fora do perfil (filtro da campanha): sem convite para a conversa gratuita
-  const foraRenda = d.sp && d.motivoFora === 'renda';
-  const foraOutro = d.sp && !d.qualificado && !foraRenda;
-  const textoPasso = foraRenda
-    ? 'Comece pelas ações do plano acima, uma por semana. A primeira já mostra o resultado no fim do mês. No meu Instagram eu posto toda semana conta de aposentadoria, PGBL e taxa de investimento pra servidor.'
-    : foraOutro
-    ? 'Quando quiser transformar esse plano em números da sua realidade (quanto guardar, onde investir e o que fazer com o 13º e cada progressão até ' + d.anoFinal + '), me chama no WhatsApp. Até lá, as ações acima já dão pra começar sozinho.'
-    : 'Marque agora a sua conversa de 45 minutos comigo, sem custo. A gente transforma esse plano em números da sua realidade: quanto guardar, onde investir e o que fazer com ' + (d.ot ? 'cada promoção e 13º' : d.sp ? 'o 13º e cada progressão' : 'o 13º e cada dinheiro extra') + ' até ' + d.anoFinal + '. E eu te mostro como funciona o acompanhamento.';
-  const hPasso = 92 + altura(textoPasso, W - 2 * M - 40, 11);
   if (y + hPasso > H - 70) { novaPagina(); y = 130; } // nunca deixa o próximo passo de fora
   {
     doc.setFillColor(C.ciano); doc.roundedRect(M, y, W - 2 * M, hPasso, 8, 8, 'F');
