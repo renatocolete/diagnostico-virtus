@@ -47,9 +47,24 @@ window.gerarDiagnostico = function (r, publico) {
   // A conta é no líquido: o que cai na conta hoje menos o teto depois do IR
   const tetoLiquido = cfg.tetoINSS * cfg.fatorLiquidoTeto;
   const lacunaTeto = sp && r.teto === 'sim' ? Math.max(renda - tetoLiquido, 0) : 0;
+  // Militar das Forças Armadas: a reserva é integral, então a conta do teto não existe.
+  // A meta é a casa (se ainda não está quitada) mais alguns meses de renda guardados.
+  const militar = sp && r.esfera === 'militar';
+  const valorImovel = militar && r.casa !== 'quitada' ? Number(r.valor_imovel) || 0 : 0;
+  const colchaoMilitar = militar ? renda * (cfg.mesesReservaMilitar || 12) : 0;
+  const metaMilitar = Math.round((valorImovel + colchaoMilitar) / 10000) * 10000;
+
   // (a meta do servidor é arredondada para R$ 10 mil: é uma estimativa, não precisa de centavos)
-  const meta = ot ? cfg.metaTemporario : lacunaTeto > 0 ? Math.round((lacunaTeto * 12) / cfg.taxaRetirada / 10000) * 10000 : cfg.metaGeral;
+  const metaHoje = ot ? cfg.metaTemporario
+    : lacunaTeto > 0 ? Math.round((lacunaTeto * 12) / cfg.taxaRetirada / 10000) * 10000
+    : militar && metaMilitar > 0 ? metaMilitar
+    : cfg.metaGeral;
+  // A projeção é em dinheiro do ano final (12% sem descontar inflação). Na versão servidor a meta
+  // vai para a mesma moeda, senão o PDF diria "você chega lá" para quem está longe.
+  const fatorInflacao = Math.pow(1 + (cfg.inflacao || 0), anos);
+  const meta = sp ? Math.round((metaHoje * fatorInflacao) / 10000) * 10000 : metaHoje;
   const proj = projetar(patrimonio, aporte, anos, taxa);
+  const projHoje = proj.final / fatorInflacao; // o mesmo valor em dinheiro de hoje
 
   // PGBL: até 12% da renda bruta anual abatida na declaração completa
   const limitePGBL = bruto * 12 * (cfg.limitePGBL || 0.12);
@@ -90,7 +105,8 @@ window.gerarDiagnostico = function (r, publico) {
 
   // Quando o aporte que a meta pede foge da realidade (prazo curto, renda de aluno, valor digitado errado),
   // o PDF não mostra "precisa investir R$ 30 mil por mês". Mostra um passo possível: 30% da renda.
-  const tetoRealista = Math.max(renda * 0.4, aporte * 1.5, 0);
+  // (servidor: até metade do que cai na conta ainda é mostrado como o aporte que a meta pede)
+  const tetoRealista = Math.max(renda * (sp ? 0.5 : 0.4), aporte * 1.5, 0);
   const metaRealista = aporteParaMeta <= 0 || aporteParaMeta <= tetoRealista;
   const aporteSugerido = Math.max(aporte, Math.round((renda * 0.3) / 50) * 50);
   const projSugerida = projetar(patrimonio, aporteSugerido, anos, taxa);
@@ -109,7 +125,7 @@ window.gerarDiagnostico = function (r, publico) {
           : ' Vale descobrir se você contribui para a previdência complementar do órgão e quanto ela vai pagar.';
       pontos.push({
         titulo: 'Faltam ' + brl(lacunaTeto) + ' por mês acima do teto',
-        texto: 'Pelo regime próprio, a sua aposentadoria vai até o teto do INSS, hoje ' + brl(cfg.tetoINSS) + ' brutos, uns ' + brl(tetoLiquido) + ' depois do imposto. Para continuar recebendo os ' + brl(renda) + ' que caem na sua conta hoje, faltam uns ' + brl(lacunaTeto) + ' por mês. Pela regra dos 4% ao ano, isso pede perto de ' + brl(meta) + ' investidos até ' + anoFinal + ', em valores de hoje.' + compl,
+        texto: 'Pelo regime próprio, a sua aposentadoria vai até o teto do INSS, hoje ' + brl(cfg.tetoINSS) + ' brutos, uns ' + brl(tetoLiquido) + ' depois do imposto. Para continuar recebendo os ' + brl(renda) + ' que caem na sua conta hoje, faltam uns ' + brl(lacunaTeto) + ' por mês. Pela regra dos 4% ao ano, isso pede perto de ' + brl(metaHoje) + ' investidos, em valores de hoje. Com a inflação até ' + anoFinal + ', são uns ' + brl(meta) + '.' + compl,
       });
     } else if (r.teto === 'nao_sei') {
       pontos.push({
@@ -118,10 +134,31 @@ window.gerarDiagnostico = function (r, publico) {
       });
     }
 
+    // Militar: casa para a reserva e família com uma renda só
+    if (militar && r.casa !== 'quitada' && valorImovel > 0) {
+      const financiada = r.casa === 'financiada';
+      const chega = projHoje >= valorImovel;
+      pontos.push({
+        titulo: r.pnr === 'sim' ? 'Na reserva você devolve o PNR. E a casa?' : financiada ? 'O financiamento precisa estar quitado até a reserva' : 'A casa própria ainda não está garantida',
+        texto: 'A reserva paga o seu contracheque integral, mas não paga casa. ' +
+          (financiada ? 'Faltam uns ' + brl(valorImovel) + ' do financiamento.' : 'Um imóvel como o que você quer custa hoje uns ' + brl(valorImovel) + '.') +
+          ' No ritmo de hoje, você chega em ' + anoFinal + ' com uns ' + brl(projHoje) + ' em dinheiro de hoje. ' +
+          (chega ? 'Dá para resolver a casa, mas sobra pouco para o resto. Vale separar um aporte só para ela.'
+            : 'Não fecha a conta. Sem mudar o ritmo, a casa vira aluguel ou financiamento depois dos 50.'),
+      });
+    }
+    if (militar && r.conjuge_trabalha === 'nao_mudancas') {
+      const real = (1 + taxa) / (1 + (cfg.inflacao || 0)) - 1;
+      pontos.push({
+        titulo: 'As transferências custam uma renda inteira',
+        texto: 'Com o seu cônjuge sem trabalhar por causa das mudanças, a casa depende de um contracheque só. Só como referência: mil reais por mês guardados por mais alguém da casa virariam uns ' + brl(projetar(0, 1000, 20, real).final) + ' em 20 anos, em dinheiro de hoje. Por isso o dinheiro que entra precisa ser bem usado, e a proteção da família pesa mais do que numa casa com duas rendas.',
+      });
+    }
+
     if (bruto > 0 && r.declaracao === 'completa' && r.pgbl !== 'usa_12') {
       pontos.push({
         titulo: 'O PGBL pode adiar até ' + brl(economiaPGBL) + ' de imposto por ano',
-        texto: 'Como você contribui para o regime próprio e faz a declaração completa, o que você investe num PGBL sai da base de cálculo do imposto, até 12% da renda bruta do ano: uns ' + brl(limitePGBL) + ' no seu caso. Na alíquota de ' + (aliquota * 100).toLocaleString('pt-BR') + '%, são até ' + brl(economiaPGBL) + ' a menos de imposto, que aparecem na declaração como restituição maior ou imposto menor a pagar. O imposto volta no resgate, mas na tabela regressiva pode cair para 10% depois de 10 anos.' +
+        texto: 'Como você contribui para ' + (militar ? 'a pensão militar' : 'o regime próprio') + ' e faz a declaração completa, o que você investe num PGBL sai da base de cálculo do imposto, até 12% da renda bruta do ano: uns ' + brl(limitePGBL) + ' no seu caso. Na alíquota de ' + (aliquota * 100).toLocaleString('pt-BR') + '%, são até ' + brl(economiaPGBL) + ' a menos de imposto, que aparecem na declaração como restituição maior ou imposto menor a pagar. O imposto volta no resgate, mas na tabela regressiva pode cair para 10% depois de 10 anos.' +
           (r.complementar === 'sim' ? ' Como você já contribui para a previdência complementar, veja como ela entra nesse limite antes de abrir um plano.' : '') +
           (new Date().getMonth() >= 9 ? ' Para valer neste ano, o aporte precisa cair até 31 de dezembro.' : ''),
       });
@@ -129,6 +166,26 @@ window.gerarDiagnostico = function (r, publico) {
       pontos.push({
         titulo: r.declaracao === 'simplificada' ? 'A declaração simplificada pode estar saindo cara' : 'Vale conferir qual declaração é melhor para você',
         texto: 'Com o seu salário, o desconto da simplificada tem um limite em reais e fica pequeno perto do imposto que você paga. Quem tem dependentes, plano de saúde, escola ou quer usar o PGBL costuma pagar menos na completa. Simule as duas no programa da Receita antes de entregar. Na completa, o PGBL pode tirar até ' + brl(limitePGBL) + ' por ano da sua base de cálculo.',
+      });
+    }
+
+    // Previdência que a pessoa já tem: a taxa come o resultado
+    if (r.previdencia && r.previdencia !== 'nao' && r.taxa_prev !== 'ate1') {
+      pontos.push({
+        titulo: r.taxa_prev === 'acima1' ? 'A sua previdência cobra mais de 1% ao ano' : 'Você não sabe quanto a sua previdência cobra',
+        texto: 'A taxa de administração sai todo ano, rendendo bem ou mal. Em cada R$ 100 mil, 2% ao ano são R$ 2 mil. Em 25 anos, uma taxa de 2% leva mais ou menos um terço do que você juntou. Pegue o extrato ou o regulamento e procure a taxa de administração e a de carregamento.' +
+          (r.previdencia === 'folha' || r.previdencia === 'ambos' ? ' No desconto do contracheque, confira também se é um pecúlio (um seguro, que só paga em caso de morte) ou um plano que junta dinheiro para você.' : ''),
+      });
+    }
+
+    // Pensão por morte de quem se aposenta pelo teto (regra federal desde a EC 103/2019)
+    if (!militar && r.teto === 'sim' && ['tem_seguro', 'sem_seguro', 'nao_sei'].includes(r.protecao)) {
+      pontos.push({
+        pensao: true,
+        titulo: 'Se faltar você, a pensão fica perto de 70% do teto',
+        texto: 'No regime federal, desde a reforma de 2019, a pensão por morte é 50% da aposentadoria a que você teria direito, mais 10% por dependente. Com cônjuge e um filho, 70%. Como a sua aposentadoria vai até o teto, isso dá uns ' + brl(cfg.tetoINSS * 0.7) + ' brutos, contra os ' + brl(bruto) + ' do seu salário hoje. ' +
+          (r.protecao === 'tem_seguro' ? 'Vale conferir se o seu seguro de vida cobre essa diferença.' : 'É essa diferença que um seguro de vida precisa cobrir.') +
+          (r.esfera === 'estadual' || r.esfera === 'municipal' ? ' Nos estados e municípios a regra pode ser outra: confira no seu regime.' : ''),
       });
     }
 
@@ -178,7 +235,7 @@ window.gerarDiagnostico = function (r, publico) {
     });
   }
 
-  if (r.protecao === 'sem_seguro' || r.protecao === 'nao_sei') {
+  if ((r.protecao === 'sem_seguro' || r.protecao === 'nao_sei') && !pontos.some((p) => p.pensao)) {
     pontos.push({
       titulo: r.protecao === 'sem_seguro' ? 'Tem gente dependendo da sua renda sem proteção' : 'Seguro que talvez não cubra o necessário',
       texto: 'Se a sua renda parar, quem depende de você precisa de tempo e dinheiro para se reorganizar. Uma conta simples é cobrir de 5 a 10 anos do custo da casa. Antes de buscar mais rentabilidade, vale saber se essa parte está coberta.',
@@ -266,7 +323,7 @@ window.gerarDiagnostico = function (r, publico) {
     });
   }
 
-  if (r.objetivo === 'aposentadoria' || r.momento === 'pre_aposentadoria' || (sp && tem('aposentadoria') && lacunaTeto === 0)) {
+  if (r.objetivo === 'aposentadoria' || r.momento === 'pre_aposentadoria' || (sp && !militar && tem('aposentadoria') && lacunaTeto === 0)) {
     pontos.push({
       titulo: 'Aposentadoria precisa de um número',
       texto: 'Sem saber quanto você quer receber por mês e a partir de que idade, não dá para dizer se o ritmo de hoje é suficiente. Esse número define o aporte, o tipo de carteira e se vale a pena usar previdência privada para pagar menos imposto.',
@@ -346,9 +403,10 @@ window.gerarDiagnostico = function (r, publico) {
   if (patrimonio > reservaIdeal) inv += 2;
   areas.push({ nome: 'Investimentos', nota: lim(inv) });
 
-  let futuro = (totalSaida / meta) * 10;
+  // Na versão servidor a nota cai mais rápido quando falta: chegar a 70% da meta é nota 5, não 7
+  let futuro = sp ? Math.pow(Math.min(totalSaida / meta, 1), 2) * 10 : (totalSaida / meta) * 10;
   if (tem('medo_sair')) futuro -= 2;
-  areas.push({ nome: ot ? 'Preparo para a saída' : sp ? 'Aposentadoria' : 'Plano para o futuro', nota: lim(futuro) });
+  areas.push({ nome: ot ? 'Preparo para a saída' : militar ? 'Reserva e casa' : sp ? 'Aposentadoria' : 'Plano para o futuro', nota: lim(futuro) });
 
   if (sp) {
     let ir = r.declaracao === 'completa'
@@ -376,6 +434,7 @@ window.gerarDiagnostico = function (r, publico) {
     'Proteção da família': 'Confira se você tem seguro de vida, quanto ele paga e quem são os beneficiários. Se não tem, faça a conta de quanto a sua família precisaria por mês sem a sua renda.',
     'Preparo para a saída': 'Anote o ano previsto da sua saída e as datas das próximas promoções. Defina agora quanto de cada aumento vai para investimento antes de ele cair na conta.',
     'Aposentadoria': 'Confirme no RH ou no portal do servidor qual regra de aposentadoria vale para você, se ela tem teto e quanto a previdência complementar deve pagar. Com isso dá para calcular quanto falta por mês.',
+    'Reserva e casa': 'Anote o valor do imóvel que você quer ter na reserva e o ano em que você vai para a reserva. Divida o que falta pelo número de meses até lá: esse é o aporte da casa, separado do resto.',
     'Imposto de renda': 'Pegue a última declaração e simule as duas opções, completa e simplificada, no programa da Receita. Se a completa ganhar, veja quanto falta para usar os 12% de PGBL até 31 de dezembro.',
     'Plano para o futuro': 'Escreva os seus 2 objetivos principais com valor e prazo, por exemplo "R$ 80 mil de entrada do apartamento em 4 anos". Sem número, não dá para saber se o ritmo está certo.',
   };
@@ -403,6 +462,8 @@ window.gerarDiagnostico = function (r, publico) {
     areas, nota360, maisFraca, maisForte, plano30, whatsPrincipal, whatsFase, whatsMeta,
     interesse: r.conversa, horario: r.horario,
     qualificado, motivoFora, motivoForaTexto, conjuge: r.conjuge,
+    militar, metaHoje, projHoje, valorImovel, colchaoMilitar, inflacao: cfg.inflacao || 0,
+    tetoLiquido, casa: r.casa,
     instagram: 'https://instagram.com/renatocolete',
     publico, ot, sp, anoAtual, anoFinal, anos,
     bruto, lacunaTeto, teto: r.teto, limitePGBL, economiaPGBL, aliquota, tetoINSS: cfg.tetoINSS,

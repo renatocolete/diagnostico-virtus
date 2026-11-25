@@ -37,4 +37,10 @@ window.CONFIG = {
   // Filtro da campanha (combinado com a TRÍADE): abaixo deste salário BRUTO a pessoa recebe o PDF,
   // mas não recebe o convite para a conversa e chega marcada como "fora do perfil" na planilha.
   rendaMinimaServidor: 12000,
+  // A projeção usa 12% ao ano sem descontar inflação. Para comparar na mesma moeda, a meta
+  // (que é calculada em valores de hoje) é corrigida por esta inflação até o ano final.
+  inflacao: 0.045,
+  // Militar: a meta da reserva soma o imóvel (se ainda não tem casa quitada) e esta quantidade
+  // de meses de renda guardada, para a transição e os imprevistos que o contracheque não cobre.
+  mesesReservaMilitar: 12,
 };

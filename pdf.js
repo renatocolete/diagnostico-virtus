@@ -57,7 +57,7 @@ window.gerarPDF = function (d) {
   // ================= Página 1: Diagnóstico 360 =================
   novaPagina();
   let y = 120;
-  eyebrow(d.ot ? 'Diagnóstico para oficial temporário' : d.sp ? 'Diagnóstico para servidor público' : 'Diagnóstico financeiro', y);
+  eyebrow(d.ot ? 'Diagnóstico para oficial temporário' : d.militar ? 'Diagnóstico para militar' : d.sp ? 'Diagnóstico para servidor público' : 'Diagnóstico financeiro', y);
   y = titulo('Olá, ' + (d.primeiroNome || 'tudo bem') + '.', y + 36, 34);
   y = paragrafo('Este é o retrato da sua vida financeira a partir do que você respondeu. Cada área recebeu uma nota de 1 a 10. Quanto mais aberto o desenho, mais equilibrada está a sua vida financeira.', M, y + 4, W - 2 * M, { tam: 11.5 });
 
@@ -163,6 +163,7 @@ window.gerarPDF = function (d) {
   if (d.sp) {
     stats.push({ r: 'Salário bruto', v: brl(d.bruto) });
     if (d.lacunaTeto > 0) stats.push({ r: 'Falta por mês acima do teto', v: brl(d.lacunaTeto), alerta: true });
+    else if (d.valorImovel > 0) stats.push({ r: d.casa === 'financiada' ? 'Falta do financiamento' : 'Imóvel para a reserva', v: brl(d.valorImovel), alerta: true });
     else stats.push({ r: 'PGBL: limite de dedução no ano', v: brl(d.limitePGBL) });
   }
   if (d.ot) {
@@ -181,7 +182,35 @@ window.gerarPDF = function (d) {
   });
   y += Math.ceil(stats.length / 2) * (cardH + 12) + 14;
 
-  if (d.objetivoTexto && y < H - 120) {
+  // Comparativo em barras: hoje x aposentadoria (servidor no teto) ou casa x patrimônio (militar)
+  let comp = null;
+  if (d.sp && d.lacunaTeto > 0) {
+    comp = {
+      titulo: 'Hoje x aposentadoria pelo teto',
+      barras: [['Cai na sua conta hoje', d.renda, C.ciano], ['Aposentadoria pelo teto, depois do imposto', d.tetoLiquido, C.laranja]],
+      nota: 'Diferença: ' + brl(d.lacunaTeto) + ' por mês, todo mês, pelo resto da vida.',
+    };
+  } else if (d.militar && d.valorImovel > 0) {
+    comp = {
+      titulo: 'A casa da reserva',
+      barras: [[d.casa === 'financiada' ? 'Falta do financiamento' : 'Imóvel que você quer', d.valorImovel, C.laranja], ['O que você terá em ' + d.anoFinal + ' no ritmo de hoje (dinheiro de hoje)', d.projHoje, C.ciano]],
+      nota: 'A reserva paga o contracheque. A casa sai do que você juntar até lá.',
+    };
+  }
+  if (comp && y + 92 < H - 132) {
+    eyebrow(comp.titulo, y);
+    const maxB = Math.max.apply(null, comp.barras.map((b) => b[1]).concat([1]));
+    comp.barras.forEach((b, i) => {
+      const by = y + 12 + i * 30;
+      doc.setFont('helvetica', 'normal'); doc.setFontSize(9.5); doc.setTextColor(C.suave);
+      doc.text(b[0], M, by + 8);
+      const larg = Math.max(4, ((W - 2 * M - 110) * b[1]) / maxB);
+      doc.setFillColor(b[2]); doc.roundedRect(M, by + 13, larg, 12, 3, 3, 'F');
+      doc.setFont('helvetica', 'bold'); doc.setFontSize(11); doc.setTextColor(b[2]);
+      doc.text(brl(b[1]), M + larg + 8, by + 23);
+    });
+    paragrafo(comp.nota, M, y + 12 + comp.barras.length * 30 + 10, W - 2 * M, { tam: 10, cor: C.texto });
+  } else if (d.objetivoTexto && y < H - 120) {
     eyebrow('O que você quer resolver', y);
     paragrafo(d.objetivoTexto, M, y + 20, W - 2 * M, { tam: 13, cor: C.texto });
   }
@@ -214,12 +243,17 @@ window.gerarPDF = function (d) {
   // ================= Página 3: projeção e próximo passo =================
   novaPagina();
   y = 130;
-  eyebrow(d.ot ? 'Até a sua saída do Exército' : d.sp ? 'Até a sua aposentadoria' : 'Os próximos ' + d.anos + ' anos', y);
+  eyebrow(d.ot ? 'Até a sua saída do Exército' : d.militar ? 'Até a sua reserva' : d.sp ? 'Até a sua aposentadoria' : 'Os próximos ' + d.anos + ' anos', y);
   y = titulo(d.ot && d.pecuniaria > 0 ? 'Com quanto você sai do Exército em ' + d.anoFinal : 'Quanto você pode ter em ' + d.anoFinal, y + 36, 26);
   const totalFinal = d.ot ? d.totalSaida : d.proj.final;
   doc.setFont('times', 'normal'); doc.setFontSize(46); doc.setTextColor(C.ciano);
   doc.text(brl(totalFinal), M, y + 34);
   y += 52;
+  if (d.sp) {
+    doc.setFont('helvetica', 'normal'); doc.setFontSize(11); doc.setTextColor(C.suave);
+    doc.text('Em dinheiro de hoje, descontada a inflação: uns ' + brl(d.projHoje), M, y + 2);
+    y += 18;
+  }
 
   // Calculadora de juros compostos: os dados de entrada à esquerda, o resultado à direita
   const aprox = exato ? '' : 'cerca de ';
@@ -286,18 +320,25 @@ window.gerarPDF = function (d) {
   let textoMeta = passa
     ? 'Nesse ritmo você passa de ' + brl(d.meta) + ' até ' + d.anoFinal + '. O trabalho agora é manter o plano e proteger esse caminho.'
     : 'Para sair com ' + brl(d.meta) + ' em ' + d.anoFinal + (d.pecuniaria > 0 ? ', contando a pecuniária,' : '') + ' o aporte precisa ser de ' + brl(d.aporteParaMeta) + ' por mês. Promoções, férias e 13º ajudam a fechar essa conta.';
+  // Servidor e militar: a meta é calculada em dinheiro de hoje e corrigida pela inflação até o ano final
+  const motivoSp = d.lacunaTeto > 0
+    ? 'Para completar os ' + brl(d.lacunaTeto) + ' por mês acima do teto, você precisa de uns ' + brl(d.metaHoje) + ' em valores de hoje, o que dá uns ' + brl(d.meta) + ' em ' + d.anoFinal + ' com a inflação. '
+    : d.militar && d.valorImovel > 0
+    ? 'A sua meta para a reserva soma ' + (d.casa === 'financiada' ? 'o que falta do financiamento' : 'o imóvel') + ' (' + brl(d.valorImovel) + ') e um ano de renda guardado (' + brl(d.colchaoMilitar) + '): uns ' + brl(d.metaHoje) + ' hoje, ou ' + brl(d.meta) + ' em ' + d.anoFinal + ' com a inflação. '
+    : d.militar
+    ? 'Com a casa resolvida, a sua meta para a reserva é um ano de renda guardado: uns ' + brl(d.metaHoje) + ' hoje, ou ' + brl(d.meta) + ' em ' + d.anoFinal + ' com a inflação. '
+    : 'A meta de referência é ' + brl(d.metaHoje) + ' em valores de hoje, uns ' + brl(d.meta) + ' em ' + d.anoFinal + ' com a inflação. ';
   if (d.sp) {
-    const motivo = d.lacunaTeto > 0 ? 'Para completar os ' + brl(d.lacunaTeto) + ' por mês acima do teto, você precisa chegar a ' : 'A meta é chegar a ';
     textoMeta = passa
-      ? motivo + brl(d.meta) + ' em ' + d.anoFinal + '. Nesse ritmo você chega lá. O trabalho agora é manter o plano e proteger esse caminho.'
-      : motivo + brl(d.meta) + ' em ' + d.anoFinal + '. Para isso, o aporte precisa ser de ' + brl(d.aporteParaMeta) + ' por mês. O 13º e as progressões da carreira ajudam a fechar essa conta.';
+      ? motivoSp + 'Nesse ritmo você chega lá. O trabalho agora é manter o plano e proteger esse caminho.'
+      : motivoSp + 'No ritmo de hoje você não chega. Para chegar, o aporte precisa ser de ' + brl(d.aporteParaMeta) + ' por mês, contra os ' + brl(d.aporte) + ' de hoje.';
   }
   // Meta fora da realidade (prazo curto, renda de aluno, valor digitado errado): em vez de
   // "precisa investir R$ 30 mil por mês", mostra um passo que cabe na renda de hoje
   if (!passa && !d.metaRealista) {
     const extra = d.ot ? 'Promoções, férias e 13º ajudam a ir além.' : d.sp ? 'O 13º e as progressões da carreira ajudam a ir além.' : 'Aumento de renda e 13º ajudam a ir além.';
-    const inicio = (d.sp && d.lacunaTeto > 0 ? 'Para completar os ' + brl(d.lacunaTeto) + ' por mês acima do teto, a conta pede ' : 'A meta de referência é ') +
-      brl(d.meta) + ' em ' + d.anoFinal + '. Com ' + d.anos + (d.anos === 1 ? ' ano' : ' anos') + ' pela frente, isso pediria um aporte maior do que cabe hoje na sua renda. ';
+    const inicio = (d.sp ? motivoSp : 'A meta de referência é ' + brl(d.meta) + ' em ' + d.anoFinal + '. ') +
+      'Com ' + d.anos + (d.anos === 1 ? ' ano' : ' anos') + ' pela frente, isso pediria um aporte maior do que cabe hoje na sua renda. ';
     if (d.renda < 1000) {
       // renda digitada errada ou quase zero: não dá para sugerir valor
       textoMeta = inicio + 'Comece pelo plano de 30 dias deste PDF. Na conversa a gente olha os seus números com calma e define quanto dá pra investir por mês.';
@@ -321,7 +362,11 @@ window.gerarPDF = function (d) {
     y = paragrafo('Pecuniária estimada: ' + d.anosServico + ' anos de serviço (turma ' + d.turma + ' até ' + d.anoFinal + ') multiplicados por ' + d.basePecuniaria + ', ' + brl(d.baseSoldo) + '. A lei paga uma remuneração por ano de serviço, que inclui adicionais e costuma ser maior que o soldo; o valor também muda com reajustes. Use como estimativa conservadora.', M, y + 2, W - 2 * M, { tam: 8 });
   }
   paragrafo(d.sp
-    ? 'Simulação com rentabilidade de ' + pct(d.taxaAnual) + ' ao ano, sem descontar inflação nem imposto. Teto do INSS de ' + brl(d.tetoINSS) + ' (2026). A meta da aposentadoria usa a regra dos 4% ao ano, em valores de hoje, e não considera a previdência complementar. Não é promessa de rentabilidade nem recomendação de investimento.'
+    ? 'Simulação com rentabilidade de ' + pct(d.taxaAnual) + ' ao ano, sem descontar imposto. Para comparar na mesma moeda, a meta foi corrigida por uma inflação de ' + (d.inflacao * 100).toLocaleString('pt-BR') + '% ao ano até ' + d.anoFinal + '. ' +
+      (d.militar
+        ? 'Para militar, a reserva remunerada integral não entra na conta: a meta soma o imóvel e um ano de renda. '
+        : 'Teto do INSS de ' + brl(d.tetoINSS) + ' (2026). A meta da aposentadoria usa a regra dos 4% ao ano e não considera a previdência complementar. ') +
+      'Não é promessa de rentabilidade nem recomendação de investimento.'
     : 'Simulação com rentabilidade de ' + pct(d.taxaAnual) + ' ao ano, sem descontar inflação nem imposto. Não é promessa de rentabilidade. Rentabilidade passada não garante resultado futuro.', M, y + 4, W - 2 * M, { tam: 8 });
 
   // ================= Página 5: plano dos próximos 30 dias =================

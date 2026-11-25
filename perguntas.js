@@ -334,9 +334,47 @@ window.opcoesDe = (p, r) => (typeof p.opcoes === 'function' ? p.opcoes(r || {}) 
         ],
         mostrarSe: (r) => r.teto === 'sim',
       },
+      // Só para militar: a reserva é integral, então a conta que importa é a da casa e da família
+      {
+        id: 'pnr', tipo: 'single',
+        titulo: 'Você mora em imóvel funcional (PNR)?',
+        opcoes: [
+          { v: 'sim', t: 'Sim' },
+          { v: 'nao', t: 'Não' },
+        ],
+        mostrarSe: (r) => r.esfera === 'militar',
+      },
+      {
+        id: 'casa', tipo: 'single',
+        titulo: 'Você tem casa própria?',
+        opcoes: [
+          { v: 'quitada', t: 'Sim, quitada' },
+          { v: 'financiada', t: 'Sim, ainda pagando o financiamento' },
+          { v: 'nao', t: 'Não tenho' },
+        ],
+        mostrarSe: (r) => r.esfera === 'militar',
+      },
+      {
+        id: 'valor_imovel', tipo: 'money',
+        titulo: (r) => r.casa === 'financiada' ? 'Quanto ainda falta pagar do financiamento?' : 'Quanto custa hoje um imóvel como o que você quer ter na reserva?',
+        ajuda: 'Pode ser aproximado.',
+        placeholder: 'Ex.: 600.000',
+        mostrarSe: (r) => r.esfera === 'militar' && r.casa && r.casa !== 'quitada',
+      },
+      {
+        id: 'conjuge_trabalha', tipo: 'single',
+        titulo: 'O seu cônjuge trabalha fora?',
+        opcoes: [
+          { v: 'sim', t: 'Sim' },
+          { v: 'nao_mudancas', t: 'Não, por causa das transferências' },
+          { v: 'nao', t: 'Não, por outro motivo' },
+          { v: 'sem', t: 'Não tenho cônjuge' },
+        ],
+        mostrarSe: (r) => r.esfera === 'militar',
+      },
       {
         id: 'anos_aposentar', tipo: 'single',
-        titulo: 'Daqui a quantos anos você pretende se aposentar?',
+        titulo: (r) => r.esfera === 'militar' ? 'Daqui a quantos anos você vai para a reserva?' : 'Daqui a quantos anos você pretende se aposentar?',
         opcoes: [
           { v: 5, t: 'Uns 5 anos' },
           { v: 10, t: 'Uns 10 anos' },
@@ -388,6 +426,27 @@ window.opcoesDe = (p, r) => (typeof p.opcoes === 'function' ? p.opcoes(r || {}) 
         ajuda: 'Todos os bancos, poupança, previdência privada. Pode ser aproximado.',
         placeholder: 'Ex.: 250.000',
         aceitaZero: true,
+      },
+      {
+        id: 'previdencia', tipo: 'single',
+        titulo: 'Você tem previdência privada ou pecúlio?',
+        opcoes: [
+          { v: 'banco', t: 'Sim, num banco ou corretora' },
+          { v: 'folha', t: 'Sim, descontado no contracheque' },
+          { v: 'ambos', t: 'Tenho os dois' },
+          { v: 'nao', t: 'Não tenho' },
+        ],
+      },
+      {
+        id: 'taxa_prev', tipo: 'single',
+        titulo: 'Sabe quanto ela cobra de taxa de administração por ano?',
+        ajuda: 'Aparece no extrato ou no regulamento do plano.',
+        opcoes: [
+          { v: 'ate1', t: 'Até 1% ao ano' },
+          { v: 'acima1', t: 'Mais de 1% ao ano' },
+          { v: 'nao_sei', t: 'Não sei' },
+        ],
+        mostrarSe: (r) => r.previdencia && r.previdencia !== 'nao',
       },
       {
         id: 'declaracao', tipo: 'single',

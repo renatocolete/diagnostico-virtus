@@ -39,7 +39,7 @@
     $('btn-avancar').textContent = p.tipo === 'contato' ? 'Gerar meu diagnóstico' : 'Continuar';
 
     const box = $('pergunta');
-    let html = '<h2>' + p.titulo + '</h2>';
+    let html = '<h2>' + (typeof p.titulo === 'function' ? p.titulo(respostas) : p.titulo) + '</h2>';
     if (p.ajuda) html += '<p class="ajuda">' + p.ajuda + '</p>';
 
     if (p.tipo === 'contato') {
@@ -189,6 +189,7 @@
       linha('Total investido', brl(d.proj.investido)) +
       linha('Total em juros', brl(d.proj.juros)) +
       linha('Valor dos investimentos', brl(d.proj.final), true) +
+      (d.sp ? linha('Em dinheiro de hoje (inflação de ' + (d.inflacao * 100).toLocaleString('pt-BR') + '%' + ')', brl(d.projHoje)) : '') +
       (comPec ? linha('+ Pecuniária estimada', brl(d.pecuniaria)) + linha('= Total na saída', brl(d.totalSaida), true) : '') +
       '</table>' +
       (comPec ? '<p class="nota-calc">Pecuniária: ' + d.anosServico + ' anos de serviço × ' + brl(d.baseSoldo) + ' (' + d.basePecuniaria + '). Estimativa com valores de hoje.</p>' : '');
